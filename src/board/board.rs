@@ -2,8 +2,9 @@ use super::super::pieces::piece::Piece;
 
 const NUM_ROWS: usize = 8;
 const NUM_COLS: usize = 8;
-const WHITE: &str = "\u{001b}[100;1m";
-const BLACK: &str = "\u{001b}[40;1m";
+
+// \u{001b}[48;5;<n>m -> background colour for some value of n
+const TILE_COLOURS: [&str; 2] = ["\u{001b}[48;5;229m", "\u{001b}[48;5;106m"];
 
 pub struct Board {
     grid: [[Option<Piece>; NUM_COLS]; NUM_ROWS],
@@ -23,20 +24,23 @@ impl Board {
      * Resets to starting position
      */
     pub fn reset(&mut self) {
+        // both black and white pieces uses the unicode white pieces,
+        // because the unicode black pawn is coloured by default in command prompt
+
         // white pieces
-        self.grid[0] = ["♖", "♘", "♗", "♔", "♕", "♗", "♘", "♖"].map(|c| Some(Piece::new(c)));
-        self.grid[1] = ["♙"; 8].map(|c| Some(Piece::new(c)));
+        self.grid[0] = ["♖", "♘", "♗", "♔", "♕", "♗", "♘", "♖"].map(|c| Some(Piece::new(c, true)));
+        self.grid[1] = ["♙"; 8].map(|c| Some(Piece::new(c, true)));
 
         // black pieces
-        self.grid[6] = ["♟"; 8].map(|c| Some(Piece::new(c)));
-        self.grid[7] = ["♜", "♞", "♝", "♛", "♚", "♝", "♞", "♜"].map(|c| Some(Piece::new(c)));
+        self.grid[6] = ["♙"; 8].map(|c| Some(Piece::new(c, false)));
+        self.grid[7] = ["♖", "♘", "♗", "♔", "♕", "♗", "♘", "♖"].map(|c| Some(Piece::new(c, false)));
     }
 
     /**
      * Prints out a specific tile, with A1 as (0, 0)
      */
     fn show_tile(&self, x: usize, y: usize) {
-        let tile = if (x + y) % 2 == 0 { WHITE } else { BLACK };
+        let tile = TILE_COLOURS[(x + y) % 2];
         let piece = match &self.grid[y][x] {
             Some(piece) => &piece.icon,
             None => " \u{fe0e}", // \u{fe0e} to match tiles with pieces
@@ -72,8 +76,8 @@ impl Board {
         for i in 0..NUM_COLS {
             let keycode = if white { i + 65 } else { NUM_COLS - i + 64 } as u32;
             match char::from_u32(keycode) {
-                Some(c) => print!(" {} ", c),
-                None => print!("   "),
+                Some(c) => print!(" {}\u{fe0e} ", c),
+                None => print!("   \u{fe0e}"),
             };
         }
     }
