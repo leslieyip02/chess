@@ -1,5 +1,4 @@
-mod board;
-use board::Board;
+use chess::board::*;
 
 fn main() {
     // clear entire screen
