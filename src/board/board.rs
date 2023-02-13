@@ -1,60 +1,72 @@
-use super::super::pieces::piece::Piece;
-
-const NUM_ROWS: usize = 8;
-const NUM_COLS: usize = 8;
+use crate::pieces::Moves;
+use crate::pieces::Piece;
+use crate::{NUM_COLS, NUM_ROWS};
 
 // \u{001b}[48;5;<n>m -> background colour for some value of n
 const TILE_COLOURS: [&str; 2] = ["\u{001b}[48;5;229m", "\u{001b}[48;5;106m"];
 
+/// Stores the pieces as options in a 2D array
+/// * pieces can be dereferenced by calling `as_ref()`
+/// * pieces can also be referenced inside `match` blocks
 pub struct Board {
-    grid: [[Option<Piece>; NUM_COLS]; NUM_ROWS],
+    pub grid: [[Option<Piece>; NUM_COLS]; NUM_ROWS],
 }
 
 impl Board {
-    pub fn new() -> Board {
-        let mut board = Board {
+    /// Fills board with `None`
+    pub fn empty() -> Board {
+        Board {
             grid: Default::default(),
-        };
+        }
+    }
+
+    /// Sets up board in starting position
+    pub fn new() -> Board {
+        let mut board = Board::empty();
 
         board.reset();
         return board;
     }
 
-    /**
-     * Resets to starting position
-     */
-    pub fn reset(&mut self) {
-        // both black and white pieces uses the unicode white pieces,
-        // because the unicode black pawn is coloured by default in command prompt
-
-        // white pieces
-        self.grid[0] = ["♖", "♘", "♗", "♔", "♕", "♗", "♘", "♖"].map(|c| Some(Piece::new(c, true)));
-        self.grid[1] = ["♙"; 8].map(|c| Some(Piece::new(c, true)));
-
-        // black pieces
-        self.grid[6] = ["♙"; 8].map(|c| Some(Piece::new(c, false)));
-        self.grid[7] = ["♖", "♘", "♗", "♔", "♕", "♗", "♘", "♖"].map(|c| Some(Piece::new(c, false)));
+    /// Sets a single piece at (x, y)
+    pub fn place_piece(&mut self, x: usize, y: usize, icon: &str, white: bool) {
+        self.grid[y][x] = Some(Piece::new(x, y, icon, white));
     }
 
-    /**
-     * Prints out a specific tile, with A1 as (0, 0)
-     */
+    /// Resets to starting position
+    pub fn reset(&mut self) {
+        // white pieces
+        let rank_1 = ["♖", "♘", "♗", "♔", "♕", "♗", "♘", "♖"];
+        let rank_2 = ["♙"; 8];
+
+        // black pieces
+        let rank_7 = ["♙"; 8];
+        let rank_8 = ["♖", "♘", "♗", "♔", "♕", "♗", "♘", "♖"];
+
+        for x in 0..NUM_COLS {
+            self.place_piece(x, 0, rank_1[x], true);
+            self.place_piece(x, 1, rank_2[x], true);
+            self.place_piece(x, 6, rank_7[x], false);
+            self.place_piece(x, 7, rank_8[x], false);
+        }
+    }
+
+    /// Prints out a specific tile, with A1 as (0, 0)
     fn show_tile(&self, x: usize, y: usize) {
         let tile = TILE_COLOURS[(x + y) % 2];
         let piece = match &self.grid[y][x] {
             Some(piece) => &piece.icon,
-            None => " \u{fe0e}", // \u{fe0e} to match tiles with pieces
+            None => " ",
         };
 
-        print!("{} {} ", tile, piece);
+        // \u{fe0e} increases the size of the pieces in command prompt
+        print!("{} {}\u{fe0e} ", tile, piece);
     }
 
-    /**
-     * Prints the chessboard to the console
-     */
+    /// Prints the chessboard to the console
     pub fn show(&self, white: bool) {
         // clear screen
-        print!("\x1b[d");
+        print!("\u{001b}[d");
 
         for i in 0..NUM_ROWS {
             let y = if white { NUM_ROWS - i - 1 } else { i };
@@ -81,5 +93,28 @@ impl Board {
             };
         }
         println!();
+    }
+
+    /// Parses a move given in algebraic notation
+    ///
+    /// - Each piece is denoted by an uppercase letter, except for pawns
+    ///     - B for bishop
+    ///     - K for king
+    ///     - N for knight
+    ///     - Q for queen
+    ///     - R for rook
+    pub fn parse_move(&self, action: &str, white: bool) -> bool {
+        let mut moves = Moves::Pawn;
+        for c in ['B', 'K', 'N', 'Q', 'R'] {
+            if action.starts_with(c) {
+                moves = Moves::new(c);
+                break;
+            }
+        }
+
+        // TODO: check if there are additional specifiers for disambiguation
+        // TODO: parse target position
+
+        return true;
     }
 }

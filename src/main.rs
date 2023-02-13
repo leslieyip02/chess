@@ -8,8 +8,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let board = Board::new();
     
-    // clear entire screen
-    print!("\x1b[2J");
+    // clear screen
+    print!("\u{001b}[2J");
     
     loop {        
         // display board
@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             break;
         }
         
-        // clear current line
+        // clear screen
         print!("\u{001b}[2J");
         line.clear();
     }
