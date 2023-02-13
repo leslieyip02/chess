@@ -80,5 +80,6 @@ impl Board {
                 None => print!("   \u{fe0e}"),
             };
         }
+        println!();
     }
 }
