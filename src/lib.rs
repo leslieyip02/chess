@@ -14,8 +14,17 @@ pub mod board {
 
 pub mod pieces {
     pub mod moves;
-    pub use moves::Moves;
+    pub use moves::MoveChecker;
 
     pub mod piece;
     pub use piece::Piece;
+    pub use piece::Id;
+}
+
+pub mod tests {
+    #[cfg(test)]
+    pub mod bishop_moves;
+    
+    #[cfg(test)]
+    pub mod pawn_moves;
 }

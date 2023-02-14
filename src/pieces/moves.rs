@@ -1,8 +1,8 @@
 use crate::board::Board;
-use crate::pieces::Piece;
+use crate::pieces::{Id, Piece};
 use crate::{Coordinate, NUM_COLS, NUM_ROWS};
 
-pub enum Moves {
+pub enum MoveChecker {
     Bishop,
     King,
     Knight,
@@ -11,15 +11,15 @@ pub enum Moves {
     Rook,
 }
 
-impl Moves {
-    pub fn new(letter: char) -> Self {
-        match letter {
-            'B' | '♗' => Self::Bishop,
-            'K' | '♔' => Self::King,
-            'N' | '♘' => Self::Knight,
-            'Q' | '♕' => Self::Queen,
-            'R' | '♖' => Self::Rook,
-            _ => Self::Pawn,
+impl MoveChecker {
+    pub fn from_id(id: Id) -> Self {
+        match id {
+            Id::Bishop => Self::Bishop,
+            Id::King => Self::King,
+            Id::Knight => Self::Knight,
+            Id::Queen => Self::Queen,
+            Id::Rook => Self::Rook,
+            Id::Pawn => Self::Pawn,
         }
     }
 

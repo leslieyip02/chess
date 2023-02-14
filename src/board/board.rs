@@ -1,5 +1,4 @@
-use crate::pieces::Moves;
-use crate::pieces::Piece;
+use crate::pieces::{Id, Piece};
 use crate::{NUM_COLS, NUM_ROWS};
 
 // \u{001b}[48;5;<n>m -> background colour for some value of n
@@ -104,10 +103,11 @@ impl Board {
     ///     - Q for queen
     ///     - R for rook
     pub fn parse_move(&self, action: &str, white: bool) -> bool {
-        let mut moves = Moves::Pawn;
-        for c in ['B', 'K', 'N', 'Q', 'R'] {
-            if action.starts_with(c) {
-                moves = Moves::new(c);
+        let mut id = Id::Pawn;        
+        for prefix in ["B", "K", "N", "Q", "R"] {
+            if action.starts_with(prefix) {
+                // check type of piece
+                id = Id::from_str(prefix);
                 break;
             }
         }
