@@ -1,6 +1,6 @@
-use chess::board::Board;
-use chess::pieces::Moves;
-use chess::Coordinate;
+use crate::board::Board;
+use crate::pieces::MoveChecker;
+use crate::Coordinate;
 
 /// sets up board used for all tests
 fn test_board() -> Board {
@@ -22,7 +22,7 @@ fn test_board() -> Board {
 /// Tests if the piece at (x, y) can move to the position
 fn test_move(x: usize, y: usize, position: Coordinate, expected: bool) {
     let board = test_board();
-    let moves = Moves::Pawn;
+    let moves = MoveChecker::Pawn;
     match &board.grid[y][x] {
         Some(piece) => assert_eq!(moves.can_move(&piece, position, &board), expected),
         None => assert!(false),
