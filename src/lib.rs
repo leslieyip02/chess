@@ -3,6 +3,7 @@ pub const NUM_COLS: usize = 8;
 
 pub enum Error {
     InvalidArgument,
+    IndexOutOfRange,
 }
 
 /// (x, y) coordinate with A1 as (0, 0)
@@ -14,7 +15,7 @@ pub struct Coordinate {
 impl Coordinate {
     fn new(x: usize, y: usize) -> Result<Coordinate, Error> {
         if x >= NUM_COLS || y >= NUM_ROWS {
-            return Err(Error::InvalidArgument);
+            return Err(Error::IndexOutOfRange);
         }
 
         Ok(Coordinate { x, y })
@@ -29,9 +30,9 @@ impl Coordinate {
             return Err(Error::InvalidArgument);
         }
 
-        let c: Vec<char> = position.chars().collect();
-        let x = c[0] as usize - 97; // a is 97
-        let y = c[1] as usize - 49; // 0 is 48, minus 49 to be 0-indexed
+        let coordinates: Vec<char> = position.chars().collect();
+        let x = coordinates[0] as usize - 97; // a is 97
+        let y = coordinates[1] as usize - 49; // 0 is 48, minus 49 to be 0-indexed
         Coordinate::new(x, y)
     }
 }

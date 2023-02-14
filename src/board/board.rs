@@ -107,18 +107,60 @@ impl Board {
     ///     - Q for queen
     ///     - R for rook
     ///
-    /// * The letter x denotes a capture
-    ///
     /// * Returns a `Piece` and a `Coordinate` to move to
     pub fn parse_move(&self, action: &str, white: bool) -> Result<(&Piece, Coordinate), Error> {
+        // TODO: google en passant
+        // TODO: castling
+        // TODO: promotion
+
+        // remove letter x because it doesn't really matter
+        let mut action = action.replace("x", "");
+
         // last 2 chars of move refers to the destination
         let position = Coordinate::from_alphanumeric(&action[(action.len() - 2)..])?;
 
+        // default to pawn since it has no associated letter
         let mut id = Id::Pawn;
+
+        // only uppercase letters for pieces
+        // lowercase b could be confused for uppercase B
+        // e.g. bxc5 vs Bxc5
+        let mut piece_letter = "";
         for letter in ["B", "N", "K", "Q", "R"] {
             if action.starts_with(letter) {
+                piece_letter = letter;
                 id = Id::from_str(letter)?;
                 break;
+            }
+        }
+
+        // check for additional identifiers for disambiguation
+        let ambiguous = 10;
+        let mut x = ambiguous;
+        let mut y = ambiguous;
+
+        // pawn taking move
+        // max length of any pawn move with the x removed is 3
+        if action.len() == 3 && piece_letter.is_empty() {
+            // first letter identifies the column
+            x = action.chars().nth(0).unwrap() as usize - 97;
+        }
+
+        if action.len() > 3 {
+            // remove piece char and last 2 chars to get the identifiers
+            action = action.replace(piece_letter, "");
+            let coordinates: Vec<char> = action[..(action.len() - 2)].chars().collect();
+
+            if coordinates.len() == 1 {
+                // decide whether its the column or row identifier
+                if coordinates[0].is_alphabetic() {
+                    x = coordinates[0] as usize - 97;
+                } else {
+                    y = coordinates[0] as usize - 49;
+                }
+            } else {
+                x = coordinates[0] as usize - 97;
+                y = coordinates[1] as usize - 49;
             }
         }
 
@@ -126,11 +168,21 @@ impl Board {
         for row in &self.grid {
             for piece in row {
                 match piece {
+                    // check the piece's properties before checking the move
                     Some(piece) => {
                         if piece.id == id
                             && piece.white == white
                             && checker.can_move(piece, &position, &self)
                         {
+                            // check for ambiguity
+                            if x != ambiguous && piece.position.x != x {
+                                continue;
+                            }
+
+                            if y != ambiguous && piece.position.y != y {
+                                continue;
+                            }
+
                             return Ok((piece, position));
                         }
                     }
@@ -140,7 +192,5 @@ impl Board {
         }
 
         Err(Error::InvalidArgument)
-
-        // TODO: check if there are additional specifiers for disambiguation
     }
 }
