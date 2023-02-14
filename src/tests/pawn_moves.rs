@@ -24,7 +24,7 @@ fn test_move(x: usize, y: usize, position: Coordinate, expected: bool) {
     let board = test_board();
     let moves = MoveChecker::Pawn;
     match &board.grid[y][x] {
-        Some(piece) => assert_eq!(moves.can_move(&piece, position, &board), expected),
+        Some(piece) => assert_eq!(moves.can_move(&piece, &position, &board), expected),
         None => assert!(false),
     }
 }
@@ -62,6 +62,11 @@ fn horizontal() {
 #[test]
 fn diagonal() {
     test_move(1, 2, Coordinate { x: 0, y: 3 }, false);
+}
+
+#[test]
+fn too_far() {
+    test_move(0, 1, Coordinate { x: 0, y: 4 }, false);
 }
 
 #[test]

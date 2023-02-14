@@ -1,9 +1,10 @@
-use crate::Coordinate;
+use crate::{Coordinate, Error};
 
 // \u{001b}[38;5;<n>m -> foreground colour for some n
 pub const WHITE: &str = "\u{001b}[38;5;242m";
 pub const BLACK: &str = "\u{001b}[38;5;232m";
 
+#[derive(PartialEq)]
 pub enum Id {
     Bishop,
     King,
@@ -14,14 +15,15 @@ pub enum Id {
 }
 
 impl Id {
-    pub fn from_str(icon: &str) -> Id {
+    pub fn from_str(icon: &str) -> Result<Id, Error> {
         match icon {
-            "B" | "♗" => Self::Bishop,
-            "K" | "♔" => Self::King,
-            "N" | "♘" => Self::Knight,
-            "Q" | "♕" => Self::Queen,
-            "R" | "♖" => Self::Rook,
-            _ => Self::Pawn,
+            "B" | "♗" => Ok(Self::Bishop),
+            "K" | "♔" => Ok(Self::King),
+            "N" | "♘" => Ok(Self::Knight),
+            "P" | "♙" => Ok(Self::Pawn),
+            "Q" | "♕" => Ok(Self::Queen),
+            "R" | "♖" => Ok(Self::Rook),
+            _ => Err(Error::InvalidArgument),
         }
     }
 }
@@ -39,20 +41,20 @@ pub struct Piece {
 }
 
 impl Piece {
-    pub fn new(x: usize, y: usize, icon: &str, white: bool) -> Piece {
-        let position = Coordinate { x, y };
-        let id = Id::from_str(icon);
+    pub fn new(x: usize, y: usize, icon: &str, white: bool) -> Result<Piece, Error> {
+        let position = Coordinate::new(x, y)?;
+        let id = Id::from_str(icon)?;
 
         // both black and white pieces use the unicode white pieces
         // because the unicode black pawn is coloured by default in command prompt
         let colour = if white { WHITE } else { BLACK };
         let icon = format!("{}{}\u{fe0e}", colour, icon);
 
-        Piece {
+        Ok(Piece {
             position,
             id,
             icon,
             white,
-        }
+        })
     }
 }

@@ -12,7 +12,7 @@ pub enum MoveChecker {
 }
 
 impl MoveChecker {
-    pub fn from_id(id: Id) -> Self {
+    pub fn from_id(id: &Id) -> Self {
         match id {
             Id::Bishop => Self::Bishop,
             Id::King => Self::King,
@@ -24,7 +24,7 @@ impl MoveChecker {
     }
 
     /// Checks if a piece can move to a position
-    pub fn can_move(&self, piece: &Piece, position: Coordinate, board: &Board) -> bool {
+    pub fn can_move(&self, piece: &Piece, position: &Coordinate, board: &Board) -> bool {
         // check if move is in within the board
         // don't need to check negative since x and y are unsigned
         if position.x >= NUM_COLS || position.y >= NUM_ROWS {
@@ -111,6 +111,11 @@ impl MoveChecker {
                         Some(_) => true,
                         None => false,
                     };
+                }
+
+                // check if the position is within reach
+                if dy.abs() > 2 {
+                    return false;
                 }
 
                 // if the piece has not moved, can move 2

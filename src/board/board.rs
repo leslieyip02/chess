@@ -1,5 +1,5 @@
-use crate::pieces::{Id, Piece};
-use crate::{NUM_COLS, NUM_ROWS};
+use crate::pieces::{Id, MoveChecker, Piece};
+use crate::{Coordinate, Error, NUM_COLS, NUM_ROWS};
 
 // \u{001b}[48;5;<n>m -> background colour for some value of n
 const TILE_COLOURS: [&str; 2] = ["\u{001b}[48;5;229m", "\u{001b}[48;5;106m"];
@@ -29,7 +29,11 @@ impl Board {
 
     /// Sets a single piece at (x, y)
     pub fn place_piece(&mut self, x: usize, y: usize, icon: &str, white: bool) {
-        self.grid[y][x] = Some(Piece::new(x, y, icon, white));
+        let piece = Piece::new(x, y, icon, white);
+        match piece {
+            Ok(piece) => self.grid[y][x] = Some(piece),
+            Err(_) => println!("Could not place {} at ({}, {})", icon, x, y),
+        }
     }
 
     /// Resets to starting position
@@ -96,25 +100,47 @@ impl Board {
 
     /// Parses a move given in algebraic notation
     ///
-    /// - Each piece is denoted by an uppercase letter, except for pawns
+    /// * Each piece is denoted by an uppercase letter, except for pawns
     ///     - B for bishop
     ///     - K for king
     ///     - N for knight
     ///     - Q for queen
     ///     - R for rook
-    pub fn parse_move(&self, action: &str, white: bool) -> bool {
-        let mut id = Id::Pawn;        
-        for prefix in ["B", "K", "N", "Q", "R"] {
-            if action.starts_with(prefix) {
-                // check type of piece
-                id = Id::from_str(prefix);
+    ///
+    /// * The letter x denotes a capture
+    ///
+    /// * Returns a `Piece` and a `Coordinate` to move to
+    pub fn parse_move(&self, action: &str, white: bool) -> Result<(&Piece, Coordinate), Error> {
+        // last 2 chars of move refers to the destination
+        let position = Coordinate::from_alphanumeric(&action[(action.len() - 2)..])?;
+
+        let mut id = Id::Pawn;
+        for letter in ["B", "N", "K", "Q", "R"] {
+            if action.starts_with(letter) {
+                id = Id::from_str(letter)?;
                 break;
             }
         }
 
-        // TODO: check if there are additional specifiers for disambiguation
-        // TODO: parse target position
+        let checker = MoveChecker::from_id(&id);
+        for row in &self.grid {
+            for piece in row {
+                match piece {
+                    Some(piece) => {
+                        if piece.id == id
+                            && piece.white == white
+                            && checker.can_move(piece, &position, &self)
+                        {
+                            return Ok((piece, position));
+                        }
+                    }
+                    None => continue,
+                }
+            }
+        }
 
-        return true;
+        Err(Error::InvalidArgument)
+
+        // TODO: check if there are additional specifiers for disambiguation
     }
 }

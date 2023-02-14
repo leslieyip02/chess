@@ -16,7 +16,7 @@ fn test_move(x: usize, y: usize, position: Coordinate, expected: bool) {
     let board = test_board();
     let moves = MoveChecker::Bishop;
     match &board.grid[y][x] {
-        Some(piece) => assert_eq!(moves.can_move(&piece, position, &board), expected),
+        Some(piece) => assert_eq!(moves.can_move(&piece, &position, &board), expected),
         None => assert!(false),
     }
 }
