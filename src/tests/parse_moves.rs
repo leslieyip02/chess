@@ -23,6 +23,20 @@ fn test_input(board: &Board, input: &str, white: bool, expected: Option<(&Piece,
 }
 
 #[test]
+fn bishop() {
+    let board = Board::from_vec(&vec![(3, 3, "♗", true)]);
+    let piece = board.grid[3][3].as_ref().unwrap();
+    test_input(&board, "Bg7", true, Some((piece, 6, 6)));
+}
+
+#[test]
+fn knight() {
+    let board = Board::from_vec(&vec![(3, 3, "♘", true)]);
+    let piece = board.grid[3][3].as_ref().unwrap();
+    test_input(&board, "Nf3", true, Some((piece, 5, 2)));
+}
+
+#[test]
 fn pawn() {
     let board = Board::new();
     let piece = board.grid[1][4].as_ref().unwrap();

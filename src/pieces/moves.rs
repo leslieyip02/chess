@@ -90,7 +90,7 @@ impl MoveChecker {
                 (dx + dy) == 1 || (dx == 1 && dy == 1)
             }
             // L-shape, don't need to check if blocked
-            Self::Knight => (dx == 1 && dy == 2) || (dx == 2 && dy == 1),
+            Self::Knight => (dx.abs() == 1 && dy.abs() == 2) || (dx.abs() == 2 && dy.abs() == 1),
             Self::Pawn => {
                 // TODO: google en passant
 

@@ -33,6 +33,7 @@ mod tests {
     }
 
     mod bishop_moves;
+    mod knight_moves;
     mod pawn_moves;
 
     mod parse_moves;

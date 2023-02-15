@@ -63,7 +63,7 @@ impl Board {
         let piece = Piece::new(x, y, icon, white);
         match piece {
             Ok(piece) => self.grid[y][x] = Some(piece),
-            Err(_) => println!("Could not place {} at ({}, {})", icon, x, y),
+            Err(_) => eprintln!("Could not place {} at ({}, {})", icon, x, y),
         }
     }
 
