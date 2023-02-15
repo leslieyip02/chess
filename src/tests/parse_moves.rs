@@ -44,6 +44,13 @@ fn pawn() {
 }
 
 #[test]
+fn rook() {
+    let board = Board::from_vec(&vec![(3, 3, "♖", true)]);
+    let piece = board.grid[3][3].as_ref().unwrap();
+    test_input(&board, "Ra4", true, Some((piece, 0, 3)));
+}
+
+#[test]
 fn invalid() {
     let board = Board::new();
     test_input(&board, "a6", true, None);

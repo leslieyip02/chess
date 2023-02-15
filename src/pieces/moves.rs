@@ -1,6 +1,6 @@
 use crate::board::*;
-use crate::pieces::{Id, Piece};
 use crate::coordinate::Coordinate;
+use crate::pieces::{Id, Piece};
 
 pub enum MoveChecker {
     Bishop,
@@ -89,13 +89,16 @@ impl MoveChecker {
                 // TODO: check if move will put king in check
                 (dx + dy) == 1 || (dx == 1 && dy == 1)
             }
-            // L-shape, don't need to check if blocked
-            Self::Knight => (dx.abs() == 1 && dy.abs() == 2) || (dx.abs() == 2 && dy.abs() == 1),
+            Self::Knight => {
+                // L-shape, don't need to check if blocked
+                return (dx.abs() == 1 && dy.abs() == 2) || (dx.abs() == 2 && dy.abs() == 1);
+            }
             Self::Pawn => {
                 // TODO: google en passant
 
-                // check if the pawn is moving in the correct direction
-                if (dy > 0) != piece.white {
+                // check if the pawn is moving in the correct direction,
+                // and whether the position is within range
+                if (dy > 0) != piece.white || dy.abs() > 2 {
                     return false;
                 }
 
@@ -113,17 +116,13 @@ impl MoveChecker {
                     };
                 }
 
-                // check if the position is within reach
-                if dy.abs() > 2 {
-                    return false;
-                }
-
                 // if the piece has not moved, can move 2
                 let starting_rank = if piece.white { 1 } else { 6 };
                 if dy.abs() == 2 && y1 != starting_rank {
                     return false;
                 }
 
+                // check if any pieces blocking
                 let mut blocked = false;
                 for _ in 0..dy.abs() {
                     y1 += dy.signum();
@@ -140,8 +139,28 @@ impl MoveChecker {
             }
             // unlimited squares in cardinal and ordinal directions
             Self::Queen => dx == dy || dx == 0 || dy == 0,
-            // horizontals and verticals
-            Self::Rook => dx == 0 || dy == 0,
+            Self::Rook => {
+                // horizontals and verticals
+                if !(dx == 0 || dy == 0) {
+                    return false;
+                }
+
+                // check if any pieces blocking
+                let mut blocked = false;
+                for _ in 1..(dx + dy).abs() {
+                    x1 += dx.signum();
+                    y1 += dy.signum();
+                    match board.grid[y1 as usize][x1 as usize] {
+                        Some(_) => {
+                            blocked = true;
+                            break;
+                        }
+                        None => continue,
+                    }
+                }
+
+                return !blocked;
+            }
         };
     }
 }
