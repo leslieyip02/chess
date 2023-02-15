@@ -7,6 +7,7 @@ pub enum Error {
 }
 
 /// (x, y) coordinate with A1 as (0, 0)
+#[derive(Clone, Copy)]
 pub struct Coordinate {
     pub x: usize,
     pub y: usize,
@@ -31,6 +32,10 @@ impl Coordinate {
         }
 
         let coordinates: Vec<char> = position.chars().collect();
+        if !coordinates[0].is_lowercase() || !coordinates[1].is_numeric() {
+            return Err(Error::InvalidArgument);
+        }
+
         let x = coordinates[0] as usize - 97; // a is 97
         let y = coordinates[1] as usize - 49; // 0 is 48, minus 49 to be 0-indexed
         Coordinate::new(x, y)

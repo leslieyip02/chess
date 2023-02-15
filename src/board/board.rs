@@ -2,13 +2,15 @@ use crate::pieces::{Id, MoveChecker, Piece};
 use crate::{Coordinate, Error, NUM_COLS, NUM_ROWS};
 
 // \u{001b}[48;5;<n>m -> background colour for some value of n
-const TILE_COLOURS: [&str; 2] = ["\u{001b}[48;5;229m", "\u{001b}[48;5;106m"];
+const TILE_COLOURS: [&str; 2] = ["\u{001b}[48;5;250m", "\u{001b}[48;5;240m"];
+const WARNING_COLOUR: &str = "\u{001b}[31m";
 
-/// Stores the pieces as options in a 2D array
-/// * pieces can be dereferenced by calling `as_ref()`
-/// * pieces can also be referenced inside `match` blocks
+/// Stores the pieces as in a 2D array
+/// * `grid` - 2D array of options of [Piece]
+/// * `message` - feedback printed on top of move prompt
 pub struct Board {
     pub grid: [[Option<Piece>; NUM_COLS]; NUM_ROWS],
+    message: String,
 }
 
 impl Board {
@@ -16,13 +18,13 @@ impl Board {
     pub fn empty() -> Board {
         Board {
             grid: Default::default(),
+            message: String::new(),
         }
     }
 
     /// Sets up board in starting position
     pub fn new() -> Board {
         let mut board = Board::empty();
-
         board.reset();
         return board;
     }
@@ -57,18 +59,19 @@ impl Board {
     /// Prints out a specific tile, with A1 as (0, 0)
     fn show_tile(&self, x: usize, y: usize) {
         let tile = TILE_COLOURS[(x + y) % 2];
-        let piece = match &self.grid[y][x] {
+        let icon = match &self.grid[y][x] {
             Some(piece) => &piece.icon,
             None => " ",
         };
 
         // \u{fe0e} increases the size of the pieces in command prompt
-        print!("{} {}\u{fe0e} ", tile, piece);
+        print!("{} {}\u{fe0e} ", tile, icon);
     }
 
     /// Prints the chessboard to the console
     pub fn show(&self, white: bool) {
         // clear screen
+        print!("\u{001b}[2J");
         print!("\u{001b}[d");
 
         for i in 0..NUM_ROWS {
@@ -76,9 +79,8 @@ impl Board {
 
             // print row numbers
             print!("{} ", y + 1);
-
             for j in 0..NUM_COLS {
-                let x = if white { NUM_COLS - j - 1 } else { j };
+                let x = if white { j } else { NUM_COLS - j - 1 };
                 self.show_tile(x, y);
             }
 
@@ -95,7 +97,10 @@ impl Board {
                 None => print!("   \u{fe0e}"),
             };
         }
-        println!();
+        println!("\n\n{}", self.message);
+
+        // reset colours
+        println!("\u{001b}[0m");
     }
 
     /// Parses a move given in algebraic notation
@@ -175,11 +180,9 @@ impl Board {
                             && checker.can_move(piece, &position, &self)
                         {
                             // check for ambiguity
-                            if x != ambiguous && piece.position.x != x {
-                                continue;
-                            }
-
-                            if y != ambiguous && piece.position.y != y {
+                            if (x != ambiguous && piece.position.x != x)
+                                || (y != ambiguous && piece.position.y != y)
+                            {
                                 continue;
                             }
 
@@ -192,5 +195,26 @@ impl Board {
         }
 
         Err(Error::InvalidArgument)
+    }
+
+    /// Move a piece based on input `action`
+    /// * Returns `true` if the move is valid, `false` if not
+    pub fn make_move(&mut self, action: &str, white: bool) -> bool {
+        self.message.clear();
+        let (original, position) = match self.parse_move(action, white) {
+            Ok((piece, position)) => (piece, position),
+            Err(_) => {
+                self.message = format!("{}{} is not a valid move", WARNING_COLOUR, action);
+                return false;
+            }
+        };
+
+        let mut piece = Piece::copy(original);
+        piece.position.x = position.x;
+        piece.position.y = position.y;
+
+        self.grid[original.position.y][original.position.x] = None;
+        self.grid[position.y][position.x] = Some(piece);
+        return true;
     }
 }

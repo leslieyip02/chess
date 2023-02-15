@@ -1,10 +1,10 @@
 use crate::{Coordinate, Error};
 
 // \u{001b}[38;5;<n>m -> foreground colour for some n
-pub const WHITE: &str = "\u{001b}[38;5;242m";
-pub const BLACK: &str = "\u{001b}[38;5;232m";
+const WHITE: &str = "\u{001b}[38;5;255m";
+const BLACK: &str = "\u{001b}[38;5;232m";
 
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum Id {
     Bishop,
     King,
@@ -48,7 +48,7 @@ impl Piece {
         // both black and white pieces use the unicode white pieces
         // because the unicode black pawn is coloured by default in command prompt
         let colour = if white { WHITE } else { BLACK };
-        let icon = format!("{}{}\u{fe0e}", colour, icon);
+        let icon = format!("{}{}", colour, icon);
 
         Ok(Piece {
             position,
@@ -56,5 +56,19 @@ impl Piece {
             icon,
             white,
         })
+    }
+
+    pub fn copy(original: &Piece) -> Piece {
+        let position = original.position.clone();
+        let id = original.id.clone();
+        let icon = String::from(&original.icon);
+        let white = original.white;
+
+        Piece {
+            position,
+            id,
+            icon,
+            white,
+        }
     }
 }
