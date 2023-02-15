@@ -1,4 +1,5 @@
-use crate::{Coordinate, Error};
+use crate::Error;
+use crate::coordinate::Coordinate;
 
 // \u{001b}[38;5;<n>m -> foreground colour for some n
 const WHITE: &str = "\u{001b}[38;5;255m";

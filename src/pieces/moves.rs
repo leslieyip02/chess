@@ -1,6 +1,6 @@
-use crate::board::Board;
+use crate::board::*;
 use crate::pieces::{Id, Piece};
-use crate::{Coordinate, NUM_COLS, NUM_ROWS};
+use crate::coordinate::Coordinate;
 
 pub enum MoveChecker {
     Bishop,

@@ -1,52 +1,10 @@
-pub const NUM_ROWS: usize = 8;
-pub const NUM_COLS: usize = 8;
-
 pub enum Error {
     InvalidArgument,
     IndexOutOfRange,
 }
 
-/// (x, y) coordinate with A1 as (0, 0)
-#[derive(Clone, Copy)]
-pub struct Coordinate {
-    pub x: usize,
-    pub y: usize,
-}
-
-impl Coordinate {
-    fn new(x: usize, y: usize) -> Result<Coordinate, Error> {
-        if x >= NUM_COLS || y >= NUM_ROWS {
-            return Err(Error::IndexOutOfRange);
-        }
-
-        Ok(Coordinate { x, y })
-    }
-
-    /// Convert alphanumeric grid coordinate to 0-indexed coordinates
-    /// * `position` - lowercase letter from 'a' to 'h' with a number within [0, 8)
-    /// * e.g. A1 => (0, 0)
-    /// * e.g. E4 => (4, 3)
-    fn from_alphanumeric(position: &str) -> Result<Coordinate, Error> {
-        if position.len() != 2 {
-            return Err(Error::InvalidArgument);
-        }
-
-        let coordinates: Vec<char> = position.chars().collect();
-        if !coordinates[0].is_lowercase() || !coordinates[1].is_numeric() {
-            return Err(Error::InvalidArgument);
-        }
-
-        let x = coordinates[0] as usize - 97; // a is 97
-        let y = coordinates[1] as usize - 49; // 0 is 48, minus 49 to be 0-indexed
-        Coordinate::new(x, y)
-    }
-}
-
-pub mod board {
-    pub mod board;
-    pub use board::Board;
-}
-
+pub mod board;
+pub mod coordinate;
 pub mod pieces {
     pub mod moves;
     pub use moves::MoveChecker;
@@ -56,13 +14,26 @@ pub mod pieces {
     pub use piece::Piece;
 }
 
+#[cfg(test)]
 mod tests {
-    #[cfg(test)]
-    mod bishop_moves;
+    use crate::board::Board;
+    use crate::coordinate::Coordinate;
+    use crate::pieces::MoveChecker;
 
-    #[cfg(test)]
+    /// Tests if a piece at (x1, y1) can move to (x2, y2)
+    fn test_move(board: &Board, x1: usize, y1: usize, x2: usize, y2: usize, expected: bool) {
+        let position = Coordinate { x: x2, y: y2 };
+        match &board.grid[y1][x1] {
+            Some(piece) => {
+                let moves = MoveChecker::from_id(&piece.id);
+                assert_eq!(moves.can_move(&piece, &position, &board), expected);
+            }
+            None => assert!(false),
+        }
+    }
+
+    mod bishop_moves;
     mod pawn_moves;
 
-    #[cfg(test)]
     mod parse_moves;
 }
