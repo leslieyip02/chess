@@ -51,16 +51,27 @@ fn invalid() {
 
 #[test]
 fn ambiguous() {
-    let bishop_board = Board::from_vec(&vec![(3, 3, "♗", true), (3, 5, "♗", true)]);
+    let bishop_board = Board::from_vec(&vec![
+        (3, 3, "♗", true),
+        (3, 5, "♗", true),
+        (5, 3, "♗", true),
+    ]);
     let bishop_1 = bishop_board.grid[3][3].as_ref().unwrap();
-    test_input(&bishop_board, "B4e5", true, Some((bishop_1, 4, 4)));
     let bishop_2 = bishop_board.grid[5][3].as_ref().unwrap();
-    test_input(&bishop_board, "B6e5", true, Some((bishop_2, 4, 4)));
+    let bishop_3 = bishop_board.grid[3][5].as_ref().unwrap();
+    test_input(&bishop_board, "Be5", true, None);
+    test_input(&bishop_board, "B4e5", true, None);
+    test_input(&bishop_board, "Bde5", true, None);
+    test_input(&bishop_board, "Bd4e5", true, Some((bishop_1, 4, 4)));
+    test_input(&bishop_board, "Bd6e5", true, Some((bishop_2, 4, 4)));
+    test_input(&bishop_board, "Bf4e5", true, Some((bishop_3, 4, 4)));
+    test_input(&bishop_board, "Bde3", true, Some((bishop_1, 4, 2)));
+    test_input(&bishop_board, "B6c5", true, Some((bishop_2, 2, 4)));
 
     let mut pawn_board = Board::new();
     pawn_board.place_piece(4, 2, "♙", false);
     let pawn_1 = pawn_board.grid[1][3].as_ref().unwrap();
-    test_input(&pawn_board, "dxe3", true, Some((pawn_1, 4, 2)));
     let pawn_2 = pawn_board.grid[1][5].as_ref().unwrap();
+    test_input(&pawn_board, "dxe3", true, Some((pawn_1, 4, 2)));
     test_input(&pawn_board, "fxe3", true, Some((pawn_2, 4, 2)));
 }

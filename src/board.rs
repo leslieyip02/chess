@@ -170,7 +170,7 @@ impl Board {
 
             if coordinates.len() == 1 {
                 // decide whether its the column or row identifier
-                if coordinates[0].is_alphabetic() {
+                if coordinates[0].is_alphabetic() && coordinates[0].is_lowercase() {
                     x = coordinates[0] as usize - 97;
                 } else {
                     y = coordinates[0] as usize - 49;
@@ -180,6 +180,9 @@ impl Board {
                 y = coordinates[1] as usize - 49;
             }
         }
+
+        // check if there is any ambiguity
+        let mut possible_move: Option<(&Piece, Coordinate)> = None;
 
         // searching every square in an 8 x 8 grid isn't the most efficient way,
         // but given the small size it shouldn't be a significant cost to performance
@@ -200,7 +203,12 @@ impl Board {
                                 continue;
                             }
 
-                            return Ok((piece, position));
+                            // if a move has already been found,
+                            // then there shouldn't be another possibility
+                            match possible_move {
+                                Some(_) => return Err(Error::InvalidArgument),
+                                None => possible_move = Some((piece, position)),
+                            }
                         }
                     }
                     None => continue,
@@ -208,7 +216,11 @@ impl Board {
             }
         }
 
-        Err(Error::InvalidArgument)
+        // check if a move has been found
+        match possible_move {
+            Some((piece, position)) => return Ok((piece, position)),
+            None => return Err(Error::InvalidArgument),
+        }
     }
 
     /// Move a piece based on `input`
