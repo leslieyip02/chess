@@ -5,16 +5,20 @@ use crate::Error;
 pub const NUM_ROWS: usize = 8;
 pub const NUM_COLS: usize = 8;
 
+// \u{001b}[38;5;<n>m -> foreground colour for some n
 // \u{001b}[48;5;<n>m -> background colour for some value of n
 const TILE_COLOURS: [&str; 2] = ["\u{001b}[48;5;250m", "\u{001b}[48;5;240m"];
+const WHITE_COLOUR: &str = "\u{001b}[38;5;255m";
+const BLACK_COLOUR: &str = "\u{001b}[38;5;232m";
 const WARNING_COLOUR: &str = "\u{001b}[31m";
 
 /// Stores the pieces as in a 2D array
 /// * `grid` - 2D array of options of [Piece]
 /// * `message` - feedback printed on top of move prompt
+#[derive(Clone)]
 pub struct Board {
     pub grid: [[Option<Piece>; NUM_COLS]; NUM_ROWS],
-    message: String,
+    pub message: String,
 }
 
 impl Board {
@@ -30,13 +34,16 @@ impl Board {
     pub fn new() -> Board {
         let mut board = Board::empty();
 
+        // both black and white pieces use the unicode white pieces
+        // because the unicode black pawn is coloured by default in command prompt
+
         // white pieces
-        let rank_1 = ["♖", "♘", "♗", "♔", "♕", "♗", "♘", "♖"];
-        let rank_2 = ["♙"; 8];
+        let rank_1 = ['♖', '♘', '♗', '♔', '♕', '♗', '♘', '♖'];
+        let rank_2 = ['♙'; 8];
 
         // black pieces
-        let rank_7 = ["♙"; 8];
-        let rank_8 = ["♖", "♘", "♗", "♔", "♕", "♗", "♘", "♖"];
+        let rank_7 = ['♙'; 8];
+        let rank_8 = ['♖', '♘', '♗', '♔', '♕', '♗', '♘', '♖'];
 
         for x in 0..NUM_COLS {
             board.place_piece(x, 0, rank_1[x], true);
@@ -50,16 +57,16 @@ impl Board {
 
     /// Sets up board from a vector of piece data tuples
     /// * Each tuple contains (`x`, `y`, `icon`, `white`), corresponding to the arguments for `place_piece`
-    pub fn from_vec(pieces: &Vec<(usize, usize, &str, bool)>) -> Board {
+    pub fn from_vec(pieces: &Vec<(usize, usize, char, bool)>) -> Board {
         let mut board = Board::empty();
         for (x, y, icon, white) in pieces {
-            board.place_piece(*x, *y, icon, *white);
+            board.place_piece(*x, *y, *icon, *white);
         }
         return board;
     }
 
     /// Sets a single piece at (x, y)
-    pub fn place_piece(&mut self, x: usize, y: usize, icon: &str, white: bool) {
+    pub fn place_piece(&mut self, x: usize, y: usize, icon: char, white: bool) {
         let piece = Piece::new(x, y, icon, white);
         match piece {
             Ok(piece) => self.grid[y][x] = Some(piece),
@@ -70,13 +77,19 @@ impl Board {
     /// Prints out a specific tile, with A1 as (0, 0)
     fn show_tile(&self, x: usize, y: usize) {
         let tile = TILE_COLOURS[(x + y) % 2];
-        let icon = match &self.grid[y][x] {
-            Some(piece) => &piece.icon,
-            None => " ",
-        };
 
         // \u{fe0e} increases the size of the pieces in command prompt
-        print!("{} {}\u{fe0e} ", tile, icon);
+        match &self.grid[y][x] {
+            Some(piece) => {
+                let colour = if piece.white {
+                    WHITE_COLOUR
+                } else {
+                    BLACK_COLOUR
+                };
+                print!("{} {}{}\u{fe0e} ", tile, &colour, &piece.icon);
+            }
+            None => print!("{}  \u{fe0e} ", tile),
+        }
     }
 
     /// Prints the chessboard to the console
@@ -129,6 +142,10 @@ impl Board {
         // TODO: castling
         // TODO: promotion
 
+        if input.len() < 2 {
+            return Err(Error::InvalidArgument);
+        }
+
         // remove letter x because it doesn't really matter
         let mut input = input.replace("x", "");
 
@@ -141,11 +158,11 @@ impl Board {
         // only uppercase letters for pieces
         // lowercase b could be confused for uppercase B
         // e.g. bxc5 vs Bxc5
-        let mut piece_letter = "";
-        for letter in ["B", "N", "K", "Q", "R"] {
+        let mut piece_letter = 'P';
+        for letter in ['B', 'N', 'K', 'Q', 'R'] {
             if input.starts_with(letter) {
                 piece_letter = letter;
-                id = Id::from_str(letter)?;
+                id = Id::from_char(letter)?;
                 break;
             }
         }
@@ -157,7 +174,7 @@ impl Board {
 
         // pawn taking move
         // max length of any pawn move with the x removed is 3
-        if input.len() == 3 && piece_letter.is_empty() {
+        if input.len() == 3 && piece_letter == 'P' {
             // first letter identifies the column
             x = input.chars().nth(0).unwrap() as usize - 97;
         }
@@ -194,7 +211,7 @@ impl Board {
                     Some(piece) => {
                         if piece.id == id
                             && piece.white == white
-                            && checker.can_move(piece, &position, &self)
+                            && checker.can_move(&self, piece, &position)
                         {
                             // check for ambiguity
                             if (x != ambiguous && piece.position.x != x)
@@ -235,10 +252,19 @@ impl Board {
             }
         };
 
-        let mut piece = Piece::copy(original);
+        // check if the move will put the king in check with a test board
+        let mut board = self.clone();
+        board.grid[original.position.y][original.position.x] = None;
+        board.place_piece(position.x, position.y, original.icon, original.white);
+        if MoveChecker::in_check(&board, white) {
+            self.message = format!("{}King would be in check", WARNING_COLOUR);
+            return false;
+        }
+
+        // move piece
+        let mut piece = original.clone();
         piece.position.x = position.x;
         piece.position.y = position.y;
-
         self.grid[original.position.y][original.position.x] = None;
         self.grid[position.y][position.x] = Some(piece);
         return true;

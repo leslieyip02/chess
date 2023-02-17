@@ -26,7 +26,7 @@ mod tests {
         match &board.grid[y1][x1] {
             Some(piece) => {
                 let moves = MoveChecker::from_id(&piece.id);
-                assert_eq!(moves.can_move(&piece, &position, &board), expected);
+                assert_eq!(moves.can_move(&board, &piece, &position), expected);
             }
             None => assert!(false),
         }

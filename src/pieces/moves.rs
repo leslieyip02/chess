@@ -56,7 +56,7 @@ impl MoveChecker {
     }
 
     /// Checks if a piece can move to a position
-    pub fn can_move(&self, piece: &Piece, position: &Coordinate, board: &Board) -> bool {
+    pub fn can_move(&self, board: &Board, piece: &Piece, position: &Coordinate) -> bool {
         // check if move is in within the board
         // don't need to check negative since x and y are unsigned
         if position.x >= NUM_COLS || position.y >= NUM_ROWS {
@@ -73,9 +73,6 @@ impl MoveChecker {
             None => (),
         }
 
-        // TODO: check if in check
-        // TODO: check if piece is pinned
-
         // unsigned distance along x and y axes
         let dx = piece.position.x.abs_diff(position.x);
         let dy = piece.position.y.abs_diff(position.y);
@@ -85,20 +82,22 @@ impl MoveChecker {
             return false;
         }
 
-        return match self {
+        match self {
             Self::Bishop => {
                 // check if diagonal
                 if !(dx == dy) {
                     return false;
                 }
 
-                // check if any pieces blocking
                 return !Self::blocked(board, &piece.position, position, piece.white);
             }
-            // 1 squre in cardinal and ordinal directions
             Self::King => {
-                // TODO: check if move will put king in check
-                (dx + dy) == 1 || (dx == 1 && dy == 1)
+                // 1 squre in cardinal and ordinal directions
+                if !((dx + dy) == 1 || (dx == 1 && dy == 1)) {
+                    return false;
+                }
+                
+                return !Self::blocked(board, &piece.position, position, piece.white);
             }
             Self::Knight => {
                 // L-shape, don't need to check if blocked
@@ -142,7 +141,6 @@ impl MoveChecker {
                     None => (),
                 }
 
-                // check if any other pieces blocking
                 return !Self::blocked(board, &piece.position, position, piece.white);
             }
             Self::Queen => {
@@ -159,9 +157,50 @@ impl MoveChecker {
                     return false;
                 }
 
-                // check if any pieces blocking
                 return !Self::blocked(board, &piece.position, position, piece.white);
             }
         };
+    }
+
+    pub fn in_check(board: &Board, white: bool) -> bool {
+        let mut position: Option<&Coordinate> = None;
+        for row in &board.grid {
+            for piece in row {
+                match piece {
+                    Some(piece) => {
+                        // find the king
+                        if piece.white == white && piece.id == Id::King {
+                            position = Some(&piece.position);
+                        }
+                    }
+                    None => continue,
+                }
+            }
+        }
+        
+        // there might not be a king for custom boards, so just return false
+        let position = match position {
+            Some(position) => position,
+            None => return false,
+        };
+        
+        for row in &board.grid {
+            for piece in row {
+                match piece {
+                    // check if any pieces can attack the king
+                    Some(piece) => {
+                        if piece.white != white {
+                            let checker = MoveChecker::from_id(&piece.id);
+                            if checker.can_move(&board, &piece, &position) {
+                                return true;
+                            }
+                        }
+                    }
+                    None => continue,
+                }
+            }
+        }
+
+        return false;
     }
 }
