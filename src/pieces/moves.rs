@@ -23,6 +23,38 @@ impl MoveChecker {
         }
     }
 
+    /// Checks if any pieces blocking along the 2 coorindates
+    fn blocked(board: &Board, from: &Coordinate, to: &Coordinate, white: bool) -> bool {
+        // convert to signed so dx and dy can take negative values
+        let mut x1 = from.x as i8;
+        let mut y1 = from.y as i8;
+        let x2 = to.x as i8;
+        let y2 = to.y as i8;
+
+        // normalise dx and dy to be 1, 0 or -1
+        let dx = (x2 - x1).signum();
+        let dy = (y2 - y1).signum();
+
+        while x1 != x2 || y1 != y2 {
+            x1 += dx;
+            y1 += dy;
+
+            match &board.grid[y1 as usize][x1 as usize] {
+                Some(piece) => {
+                    // if reached target position,
+                    // check if it's a capture or it's blocked
+                    if x1 == x2 && y1 == y2 {
+                        return piece.white == white;
+                    }
+
+                    return true;
+                }
+                None => (),
+            }
+        }
+        return false;
+    }
+
     /// Checks if a piece can move to a position
     pub fn can_move(&self, piece: &Piece, position: &Coordinate, board: &Board) -> bool {
         // check if move is in within the board
@@ -44,14 +76,9 @@ impl MoveChecker {
         // TODO: check if in check
         // TODO: check if piece is pinned
 
-        // convert to signed to check direction
-        let mut x1 = piece.position.x as i8;
-        let mut y1 = piece.position.y as i8;
-        let x2 = position.x as i8;
-        let y2 = position.y as i8;
-
-        let dx = x2 - x1;
-        let dy = y2 - y1;
+        // unsigned distance along x and y axes
+        let dx = piece.position.x.abs_diff(position.x);
+        let dy = piece.position.y.abs_diff(position.y);
 
         // check if the move is actually a move
         if dx == 0 && dy == 0 {
@@ -61,28 +88,12 @@ impl MoveChecker {
         return match self {
             Self::Bishop => {
                 // check if diagonal
-                if dx.abs() != dy.abs() {
+                if !(dx == dy) {
                     return false;
                 }
 
                 // check if any pieces blocking
-                let mut blocked = false;
-                x1 += dx.signum();
-                y1 += dy.signum();
-                while x1 != x2 && y1 != y2 {
-                    match &board.grid[y1 as usize][x1 as usize] {
-                        Some(_) => {
-                            blocked = true;
-                            break;
-                        }
-                        None => {
-                            x1 += dx.signum();
-                            y1 += dy.signum();
-                        }
-                    }
-                }
-
-                return !blocked;
+                return !Self::blocked(board, &piece.position, position, piece.white);
             }
             // 1 squre in cardinal and ordinal directions
             Self::King => {
@@ -91,21 +102,21 @@ impl MoveChecker {
             }
             Self::Knight => {
                 // L-shape, don't need to check if blocked
-                return (dx.abs() == 1 && dy.abs() == 2) || (dx.abs() == 2 && dy.abs() == 1);
+                return (dx == 1 && dy == 2) || (dx == 2 && dy == 1);
             }
             Self::Pawn => {
                 // TODO: google en passant
 
                 // check if the pawn is moving in the correct direction,
                 // and whether the position is within range
-                if (dy > 0) != piece.white || dy.abs() > 2 {
+                if (position.y > piece.position.y) != piece.white || dy > 2 {
                     return false;
                 }
 
                 // if diagonal, check if a piece exists there
                 if dx != 0 {
                     // check if the distance is correct
-                    if dx.abs() != 1 || dy.abs() != 1 {
+                    if dx != 1 || dy != 1 {
                         return false;
                     }
 
@@ -118,48 +129,38 @@ impl MoveChecker {
 
                 // if the piece has not moved, can move 2
                 let starting_rank = if piece.white { 1 } else { 6 };
-                if dy.abs() == 2 && y1 != starting_rank {
+                if dy == 2 && piece.position.y != starting_rank {
                     return false;
                 }
 
-                // check if any pieces blocking
-                let mut blocked = false;
-                for _ in 0..dy.abs() {
-                    y1 += dy.signum();
-                    match board.grid[y1 as usize][x1 as usize] {
-                        Some(_) => {
-                            blocked = true;
-                            break;
-                        }
-                        None => continue,
+                // check if a piece occupies the target position
+                // this requires a different check because pawns can only capture along a diagonal
+                match &board.grid[position.y][position.x] {
+                    Some(_) => {
+                        return false;
                     }
+                    None => (),
                 }
 
-                return !blocked;
+                // check if any other pieces blocking
+                return !Self::blocked(board, &piece.position, position, piece.white);
             }
-            // unlimited squares in cardinal and ordinal directions
-            Self::Queen => dx == dy || dx == 0 || dy == 0,
+            Self::Queen => {
+                // check if diagonal or vertical or horizontal
+                if !(dx == dy || dx == 0 || dy == 0) {
+                    return false;
+                }
+
+                return !Self::blocked(board, &piece.position, position, piece.white);
+            }
             Self::Rook => {
-                // horizontals and verticals
+                // check if vertical or horizontal
                 if !(dx == 0 || dy == 0) {
                     return false;
                 }
 
                 // check if any pieces blocking
-                let mut blocked = false;
-                for _ in 1..(dx + dy).abs() {
-                    x1 += dx.signum();
-                    y1 += dy.signum();
-                    match board.grid[y1 as usize][x1 as usize] {
-                        Some(_) => {
-                            blocked = true;
-                            break;
-                        }
-                        None => continue,
-                    }
-                }
-
-                return !blocked;
+                return !Self::blocked(board, &piece.position, position, piece.white);
             }
         };
     }

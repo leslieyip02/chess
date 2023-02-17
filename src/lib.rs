@@ -35,6 +35,7 @@ mod tests {
     mod bishop_moves;
     mod knight_moves;
     mod pawn_moves;
+    mod queen_moves;
     mod rook_moves;
 
     mod parse_moves;
