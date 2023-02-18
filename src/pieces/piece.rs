@@ -1,5 +1,5 @@
-use crate::Error;
 use crate::coordinate::Coordinate;
+use crate::Error;
 
 #[derive(Clone, PartialEq)]
 pub enum Id {
@@ -30,16 +30,18 @@ impl Id {
 /// * `id` - [Id]
 /// * `icon` - unicode with combining characters
 /// * `white` - `true` for white, `false` for black
+/// * `moves` - track number of moves for castling and en passant checks
 #[derive(Clone)]
 pub struct Piece {
     pub position: Coordinate,
     pub id: Id,
     pub icon: char,
     pub white: bool,
+    pub moves: usize,
 }
 
 impl Piece {
-    pub fn new(x: usize, y: usize, icon: char, white: bool) -> Result<Piece, Error> {
+    pub fn new(x: usize, y: usize, icon: char, white: bool, moves: usize) -> Result<Piece, Error> {
         let position = Coordinate::new(x, y)?;
         let id = Id::from_char(icon)?;
 
@@ -48,6 +50,7 @@ impl Piece {
             id,
             icon,
             white,
+            moves,
         })
     }
 }

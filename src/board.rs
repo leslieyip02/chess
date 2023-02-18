@@ -4,6 +4,8 @@ use crate::Error;
 
 pub const NUM_COLS: usize = 8;
 pub const NUM_ROWS: usize = 8;
+pub const KINGSIDE_CASTLE: [usize; 2] = [6, 5];
+pub const QUEENSIDE_CASTLE: [usize; 2] = [2, 3];
 
 // \u{001b}[38;5;<n>m -> foreground colour for some n
 // \u{001b}[48;5;<n>m -> background colour for some value of n
@@ -41,18 +43,18 @@ impl Board {
         // because the unicode black pawn is coloured by default in command prompt
 
         // white pieces
-        let rank_1 = ['♖', '♘', '♗', '♔', '♕', '♗', '♘', '♖'];
+        let rank_1 = ['♖', '♘', '♗', '♕', '♔', '♗', '♘', '♖'];
         let rank_2 = ['♙'; 8];
 
         // black pieces
         let rank_7 = ['♙'; 8];
-        let rank_8 = ['♖', '♘', '♗', '♔', '♕', '♗', '♘', '♖'];
+        let rank_8 = ['♖', '♘', '♗', '♕', '♔', '♗', '♘', '♖'];
 
         for x in 0..NUM_COLS {
-            board.place_piece(x, 0, rank_1[x], true);
-            board.place_piece(x, 1, rank_2[x], true);
-            board.place_piece(x, 6, rank_7[x], false);
-            board.place_piece(x, 7, rank_8[x], false);
+            board.place_piece(x, 0, rank_1[x], true, 0);
+            board.place_piece(x, 1, rank_2[x], true, 0);
+            board.place_piece(x, 6, rank_7[x], false, 0);
+            board.place_piece(x, 7, rank_8[x], false, 0);
         }
 
         return board;
@@ -63,14 +65,14 @@ impl Board {
     pub fn from_vec(pieces: &Vec<(usize, usize, char, bool)>) -> Board {
         let mut board = Board::empty();
         for (x, y, icon, white) in pieces {
-            board.place_piece(*x, *y, *icon, *white);
+            board.place_piece(*x, *y, *icon, *white, 0);
         }
         return board;
     }
 
     /// Sets a single piece at (x, y)
-    pub fn place_piece(&mut self, x: usize, y: usize, icon: char, white: bool) {
-        let piece = Piece::new(x, y, icon, white);
+    pub fn place_piece(&mut self, x: usize, y: usize, icon: char, white: bool, moves: usize) {
+        let piece = Piece::new(x, y, icon, white, moves);
         match piece {
             Ok(piece) => self.grid[y][x] = Some(piece),
             Err(_) => eprintln!("Could not place {} at ({}, {})", icon, x, y),
@@ -84,10 +86,9 @@ impl Board {
         // \u{fe0e} increases the size of the pieces in command prompt
         match &self.grid[y][x] {
             Some(piece) => {
-                let colour = if piece.white {
-                    WHITE_COLOUR
-                } else {
-                    BLACK_COLOUR
+                let colour = match piece.white {
+                    true => WHITE_COLOUR,
+                    false => BLACK_COLOUR,
                 };
 
                 print!("{} {}{}\u{fe0e} ", tile, &colour, &piece.icon);
@@ -132,11 +133,7 @@ impl Board {
     }
 
     /// Standardises the input string
-    fn sanitise_input(input: &str) -> Result<String, Error> {
-        if input.len() < 2 {
-            return Err(Error::InvalidArgument);
-        }
-
+    fn sanitise_input(input: &str) -> String {
         // these characters don't convery any additional information
         // x, : for captures (e.g. Bxe5, B:e5 or Be5:)
         // =, (), / for promotion (e.g. e8=Q, e8(Q), e8/Q)
@@ -152,7 +149,7 @@ impl Board {
         // remove whitespace
         let input = String::from(input.trim());
 
-        Ok(input)
+        return input;
     }
 
     /// Checks what the move promotes to
@@ -279,9 +276,10 @@ impl Board {
     ) -> Result<(&Piece, Coordinate, Option<char>), Error> {
         // TODO: google en passant
         // TODO: castling
-        // TODO: promotion
+        if input.len() < 2 {
+            return Err(Error::InvalidArgument);
+        }
 
-        let input = Self::sanitise_input(input)?;
         let (id, position, promotion) = Self::process_input(&input, white)?;
         let (x, y) = Self::disambiguate(&input, &id)?;
 
@@ -331,11 +329,99 @@ impl Board {
         }
     }
 
-    /// Move a piece based on `input`
+    /// Castling is handled separately because it's the only move that moves 2 pieces at once
+    /// * supports chess960 castling
+    pub fn castle(&mut self, input: &str, white: bool) -> bool {
+        let kingside = input == "O-O";
+
+        let rank = if white { 0 } else { 7 };
+        let mut king: Option<&Piece> = None;
+        for piece in &self.grid[rank] {
+            match piece {
+                Some(piece) => {
+                    // find the king
+                    if piece.id == Id::King && piece.white == white {
+                        king = Some(piece);
+                        break;
+                    }
+                }
+                None => continue,
+            }
+        }
+
+        if king.is_none() {
+            return false;
+        }
+
+        let king = king.unwrap();
+        let range = match kingside {
+            true => (king.position.x + 1)..NUM_COLS,
+            false => 0..king.position.x,
+        };
+
+        let mut rook: Option<&Piece> = None;
+        for i in range {
+            match &self.grid[rank][i] {
+                Some(piece) => {
+                    // find  the rook
+                    if piece.id == Id::Rook && piece.white == white {
+                        rook = Some(piece);
+                        break;
+                    }
+                }
+                None => continue,
+            }
+        }
+
+        if rook.is_none() {
+            return false;
+        }
+
+        let rook = rook.unwrap();
+        if MoveChecker::can_castle(&self, king, rook, kingside, white) {
+            let rank = if white { 0 } else { 7 };
+            let files = match kingside {
+                true => &KINGSIDE_CASTLE,
+                false => &QUEENSIDE_CASTLE,
+            };
+            let king_target = files[0];
+            let rook_target = files[1];
+            let king_x = king.position.x;
+            let rook_x = rook.position.y;
+
+            // move pieces
+            self.grid[rank][king_x] = None;
+            self.place_piece(king_target, rank, '♔', white, 1);
+            self.grid[rank][rook_x] = None;
+            self.place_piece(rook_target, rank, '♖', white, 1);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /// Moves a piece based on `input`
     /// * Returns `true` if the move is valid, `false` if not
     pub fn make_move(&mut self, input: &str, white: bool) -> bool {
         self.message.clear();
-        let (original, position, promotion) = match self.parse_move(input, white) {
+        let sanitised_input = &Self::sanitise_input(input)[..];
+
+        // check if the move is castling
+        match sanitised_input {
+            "O-O" | "O-O-O" => {
+                if self.castle(sanitised_input, white) {
+                    return true;
+                } else {
+                    self.message = format!("{}Cannot castle {}", WARNING_COLOUR, input);
+                    return false;
+                }
+            }
+            _ => (),
+        }
+
+        // check if move is valid first
+        let (original, position, promotion) = match self.parse_move(sanitised_input, white) {
             Ok((piece, position, promotion)) => (piece, position, promotion),
             Err(error) => {
                 let error_message = match error {
@@ -355,19 +441,20 @@ impl Board {
             None => original.icon,
         };
         let white = original.white;
+        let moves = original.moves + 1;
 
         // check if the move will put the king in check with a test board
-        let mut board = self.clone();
-        board.grid[original.position.y][original.position.x] = None;
-        board.place_piece(x, y, icon, white);
-        if MoveChecker::in_check(&board, white) {
+        let mut test_board = self.clone();
+        test_board.grid[original.position.y][original.position.x] = None;
+        test_board.place_piece(x, y, icon, white, moves);
+        if MoveChecker::in_check(&test_board, white) {
             self.message = format!("{}King would be in check", WARNING_COLOUR);
             return false;
         }
 
         // move piece
         self.grid[original.position.y][original.position.x] = None;
-        self.place_piece(x, y, icon, white);
+        self.place_piece(x, y, icon, white, moves);
         return true;
     }
 }

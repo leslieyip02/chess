@@ -1,4 +1,4 @@
-use crate::board::Board;
+use crate::board::*;
 use crate::pieces::Piece;
 
 /// Tests if a move is parsed correctly
@@ -89,37 +89,40 @@ fn in_check() {
     let mut board = Board::from_vec(&vec![(3, 3, '♔', true), (4, 4, '♕', false)]);
     let piece = board.grid[3][3].as_ref().unwrap();
     test_input(&board, "Kd3", true, Some((piece, 3, 2, None)));
-    assert_eq!(board.make_move("Kc3", true), false);
+    assert!(!board.make_move("Kc3", true));
     assert_eq!(board.message, "\u{001b}[31mKing would be in check");
 }
 
 #[test]
 fn ambiguous() {
-    let mut bishop_board = Board::from_vec(&vec![
+    let mut board = Board::from_vec(&vec![
         (3, 3, '♗', true),
         (3, 5, '♗', true),
         (5, 3, '♗', true),
     ]);
-    let bishop_1 = bishop_board.grid[3][3].as_ref().unwrap();
-    let bishop_2 = bishop_board.grid[5][3].as_ref().unwrap();
-    let bishop_3 = bishop_board.grid[3][5].as_ref().unwrap();
-    test_input(&bishop_board, "Be5", true, None);
-    test_input(&bishop_board, "B4e5", true, None);
-    test_input(&bishop_board, "Bde5", true, None);
-    test_input(&bishop_board, "Bd4e5", true, Some((bishop_1, 4, 4, None)));
-    test_input(&bishop_board, "Bd6e5", true, Some((bishop_2, 4, 4, None)));
-    test_input(&bishop_board, "Bf4e5", true, Some((bishop_3, 4, 4, None)));
-    test_input(&bishop_board, "Bde3", true, Some((bishop_1, 4, 2, None)));
-    test_input(&bishop_board, "B6c5", true, Some((bishop_2, 2, 4, None)));
-    assert_eq!(bishop_board.make_move("B4e5", true), false);
-    assert_eq!(bishop_board.message, "\u{001b}[31mB4e5 is ambiguous");
+    let bishop_1 = board.grid[3][3].as_ref().unwrap();
+    let bishop_2 = board.grid[5][3].as_ref().unwrap();
+    let bishop_3 = board.grid[3][5].as_ref().unwrap();
+    test_input(&board, "Be5", true, None);
+    test_input(&board, "B4e5", true, None);
+    test_input(&board, "Bde5", true, None);
+    test_input(&board, "Bd4e5", true, Some((bishop_1, 4, 4, None)));
+    test_input(&board, "Bd6e5", true, Some((bishop_2, 4, 4, None)));
+    test_input(&board, "Bf4e5", true, Some((bishop_3, 4, 4, None)));
+    test_input(&board, "Bde3", true, Some((bishop_1, 4, 2, None)));
+    test_input(&board, "B6c5", true, Some((bishop_2, 2, 4, None)));
+    assert!(!board.make_move("B4e5", true));
+    assert_eq!(board.message, "\u{001b}[31mB4e5 is ambiguous");
+}
 
-    let mut pawn_board = Board::new();
-    pawn_board.place_piece(4, 2, '♙', false);
-    let pawn_1 = pawn_board.grid[1][3].as_ref().unwrap();
-    let pawn_2 = pawn_board.grid[1][5].as_ref().unwrap();
-    test_input(&pawn_board, "dxe3", true, Some((pawn_1, 4, 2, None)));
-    test_input(&pawn_board, "fxe3", true, Some((pawn_2, 4, 2, None)));
+#[test]
+fn ambiguous_pawn() {
+    let mut board = Board::new();
+    board.place_piece(4, 2, '♙', false, 0);
+    let pawn_1 = board.grid[1][3].as_ref().unwrap();
+    let pawn_2 = board.grid[1][5].as_ref().unwrap();
+    test_input(&board, "dxe3", true, Some((pawn_1, 4, 2, None)));
+    test_input(&board, "fxe3", true, Some((pawn_2, 4, 2, None)));
 }
 
 #[test]
@@ -133,12 +136,24 @@ fn promotion() {
     let pawn_1 = board.grid[6][0].as_ref().unwrap();
     let pawn_2 = board.grid[1][1].as_ref().unwrap();
     test_input(&board, "a8Q", true, Some((pawn_1, 0, 7, Some('♕'))));
-    test_input(&board, "axb8=Q", true, Some((pawn_1, 1, 7, Some('♕'))));
+    test_input(&board, "axb8Q", true, Some((pawn_1, 1, 7, Some('♕'))));
     test_input(&board, "b1B", false, Some((pawn_2, 1, 0, Some('♗'))));
-    assert_eq!(board.make_move("a8", true), false);
+    assert!(!board.make_move("a8", true));
     assert_eq!(board.message, "\u{001b}[31ma8 is not valid because promotion is forced");
-    assert_eq!(board.make_move("d5=Q", true), false);
+    assert!(!board.make_move("d5=Q", true));
     assert_eq!(board.message, "\u{001b}[31md5=Q is not a valid promotion");
+}
+
+#[test]
+fn castle() {
+    let mut board = Board::from_vec(&vec![
+        (4, 0, '♔', true),
+        (0, 0, '♖', true),
+        (7, 0, '♖', true),
+    ]);
+    assert!(board.castle("O-O", true));
+    assert!(board.grid[0][KINGSIDE_CASTLE[0]].as_ref().unwrap().icon == '♔');
+    assert!(board.grid[0][KINGSIDE_CASTLE[1]].as_ref().unwrap().icon == '♖');
 }
 
 #[test]

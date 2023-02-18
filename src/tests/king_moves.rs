@@ -47,5 +47,66 @@ fn blocked() {
 #[test]
 fn in_check() {
     let board = Board::from_vec(&vec![(3, 3, '♔', true), (4, 4, '♕', false)]);
-    assert_eq!(MoveChecker::in_check(&board, true), true);
+    assert!(MoveChecker::in_check(&board, true));
+}
+
+#[test]
+fn castle() {
+    let board = Board::from_vec(&vec![
+        (4, 0, '♔', true),
+        (0, 0, '♖', true),
+        (7, 0, '♖', true),
+    ]);
+    let king = board.grid[0][4].as_ref().unwrap();
+    let rook_k = board.grid[0][7].as_ref().unwrap();
+    let rook_q = board.grid[0][0].as_ref().unwrap();
+    assert!(MoveChecker::can_castle(&board, &king, rook_k, false, true));
+    assert!(MoveChecker::can_castle(&board, &king, rook_q, true, true));
+
+    let mut king = king.clone();
+    king.moves += 1;
+    assert!(!MoveChecker::can_castle(&board, &king, rook_k, true, true),);
+    assert!(!MoveChecker::can_castle(&board, &king, rook_q, false, true),);
+}
+
+#[test]
+fn castle_in_check() {
+    let board = Board::from_vec(&vec![
+        (4, 0, '♔', true),
+        (0, 0, '♖', true),
+        (3, 7, '♖', false),
+    ]);
+    let king = board.grid[0][4].as_ref().unwrap();
+    let rook = board.grid[0][0].as_ref().unwrap();
+    assert!(!MoveChecker::can_castle(&board, &king, rook, false, true));
+}
+
+#[test]
+fn castle_while_blocked() {
+    let board = Board::from_vec(&vec![
+        (4, 0, '♔', true),
+        (0, 0, '♖', true),
+        (7, 0, '♖', true),
+        (3, 0, '♕', true),
+        (6, 0, '♖', false),
+    ]);
+    let king = board.grid[0][4].as_ref().unwrap();
+    let rook_k = board.grid[0][7].as_ref().unwrap();
+    let rook_q = board.grid[0][0].as_ref().unwrap();
+    assert!(!MoveChecker::can_castle(&board, &king, rook_k, false, true));
+    assert!(!MoveChecker::can_castle(&board, &king, rook_q, true, true));
+}
+
+#[test]
+fn castle_960() {
+    let board = Board::from_vec(&vec![
+        (1, 0, '♔', true),
+        (0, 0, '♖', true),
+        (4, 0, '♖', true),
+    ]);
+    let king = board.grid[0][1].as_ref().unwrap();
+    let rook_k = board.grid[0][4].as_ref().unwrap();
+    let rook_q = board.grid[0][0].as_ref().unwrap();
+    assert!(MoveChecker::can_castle(&board, &king, rook_k, true, true));
+    assert!(MoveChecker::can_castle(&board, &king, rook_q, false, true));
 }
