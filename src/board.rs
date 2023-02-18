@@ -2,8 +2,8 @@ use crate::coordinate::Coordinate;
 use crate::pieces::{Id, MoveChecker, Piece};
 use crate::Error;
 
-pub const NUM_ROWS: usize = 8;
 pub const NUM_COLS: usize = 8;
+pub const NUM_ROWS: usize = 8;
 
 // \u{001b}[38;5;<n>m -> foreground colour for some n
 // \u{001b}[48;5;<n>m -> background colour for some value of n
@@ -11,6 +11,9 @@ const TILE_COLOURS: [&str; 2] = ["\u{001b}[48;5;250m", "\u{001b}[48;5;240m"];
 const WHITE_COLOUR: &str = "\u{001b}[38;5;255m";
 const BLACK_COLOUR: &str = "\u{001b}[38;5;232m";
 const WARNING_COLOUR: &str = "\u{001b}[31m";
+
+// inaccessible coordinate used to test for ambiguity
+const AMBIGUOUS: usize = NUM_COLS + 10;
 
 /// Stores the pieces as in a 2D array
 /// * `grid` - 2D array of options of [Piece]
@@ -32,7 +35,7 @@ impl Board {
 
     /// Sets up board in starting position
     pub fn new() -> Board {
-        let mut board = Board::empty();
+        let mut board = Self::empty();
 
         // both black and white pieces use the unicode white pieces
         // because the unicode black pawn is coloured by default in command prompt
@@ -86,6 +89,7 @@ impl Board {
                 } else {
                     BLACK_COLOUR
                 };
+
                 print!("{} {}{}\u{fe0e} ", tile, &colour, &piece.icon);
             }
             None => print!("{}  \u{fe0e} ", tile),
@@ -127,6 +131,137 @@ impl Board {
         println!("\u{001b}[0m");
     }
 
+    /// Standardises the input string
+    fn sanitise_input(input: &str) -> Result<String, Error> {
+        if input.len() < 2 {
+            return Err(Error::InvalidArgument);
+        }
+
+        // these characters don't convery any additional information
+        // x, : for captures (e.g. Bxe5, B:e5 or Be5:)
+        // =, (), / for promotion (e.g. e8=Q, e8(Q), e8/Q)
+        // + for checks, # for checkmates
+        let input = input.replace(&['x', ':', '=', '(', ')', '/', '+', '#'][..], "");
+
+        // remove optional en passant notation
+        let input = input.replace("e.p.", "");
+
+        // change '0's to 'O's for castling
+        let input = input.replace('0', "O");
+
+        // remove whitespace
+        let input = String::from(input.trim());
+
+        Ok(input)
+    }
+
+    /// Checks what the move promotes to
+    /// * returns `None` if it's not a promotion move
+    fn promote_to(input: &str) -> Option<char> {
+        for (letter, icon) in [('B', '♗'), ('N', '♘'), ('Q', '♕'), ('R', '♖')] {
+            if input.ends_with(letter) {
+                return Some(icon);
+            }
+        }
+
+        return None;
+    }
+
+    /// Identifies the type of piece being moved
+    fn piece_id(input: &str) -> Result<Id, Error> {
+        // only uppercase letters for pieces
+        // lowercase b could be confused for uppercase B
+        // e.g. bxc5 vs Bxc5
+        for letter in ['B', 'N', 'K', 'Q', 'R'] {
+            if input.starts_with(letter) {
+                let id = Id::from_char(letter)?;
+                return Ok(id);
+            }
+        }
+
+        // default to pawn since it has no associated letter
+        Ok(Id::Pawn)
+    }
+
+    /// Converts a coordinate from alphanumeric grid to 0-indexed coordinates
+    fn target_position(input: &str) -> Result<Coordinate, Error> {
+        if input.len() < 2 {
+            return Err(Error::IndexOutOfRange);
+        }
+
+        // last 2 chars of move refers to the destination
+        let index = input.len() - 2;
+        let target = Coordinate::from_alphanumeric(&input[index..])?;
+        Ok(target)
+    }
+
+    // Returns the piece to move, the position to move to, and if the move is a promotion
+    fn process_input(input: &str, white: bool) -> Result<(Id, Coordinate, Option<char>), Error> {
+        let promotion = Self::promote_to(&input);
+        let id = Self::piece_id(&input)?;
+
+        // if the move is a promotion,
+        // remove the last letter so that the target position is the last 2 characters
+        let mut end_index = input.len();
+        if promotion.is_some() {
+            end_index -= 1;
+        }
+        let position = Self::target_position(&input[..end_index])?;
+
+        // only allow promotion if its a pawn move to the correct rank
+        let promotion_rank = if white { 7 } else { 0 };
+        if promotion.is_some() && (id != Id::Pawn || position.y != promotion_rank) {
+            return Err(Error::InvalidMove {
+                message: String::from("is not a valid promotion"),
+            });
+        }
+
+        // must promote when on promotion rank
+        if promotion.is_none() && id == Id::Pawn && position.y == promotion_rank {
+            return Err(Error::InvalidMove {
+                message: String::from("is not valid because promotion is forced"),
+            });
+        }
+
+        Ok((id, position, promotion))
+    }
+
+    /// Checks for additional positional identifiers for disambiguation
+    fn disambiguate(input: &str, id: &Id) -> Result<(usize, usize), Error> {
+        let mut x = AMBIGUOUS;
+        let mut y = AMBIGUOUS;
+
+        // pawn taking move
+        // ignore pawn moves that are of length 2
+        if id == &Id::Pawn && input.len() > 2 {
+            // first letter identifies the column
+            x = input.chars().nth(0).unwrap() as usize - 97;
+        }
+
+        // all other disambiguations for other pieces
+        if id != &Id::Pawn && input.len() > 3 {
+            // skip the piece letter to get the identifiers
+            let coordinates: Vec<char> = input[1..(input.len() - 2)].chars().collect();
+
+            if coordinates.len() == 1 {
+                // decide whether its the column or row identifier
+                if coordinates[0].is_alphabetic() && coordinates[0].is_lowercase() {
+                    x = coordinates[0] as usize - 97;
+                } else {
+                    y = coordinates[0] as usize - 49;
+                }
+            } else if coordinates.len() == 2 {
+                x = coordinates[0] as usize - 97;
+                y = coordinates[1] as usize - 49;
+            } else {
+                // there shouldn't be more than 2 identifiers
+                return Err(Error::InvalidArgument);
+            }
+        }
+
+        Ok((x, y))
+    }
+
     /// Parses a move given in algebraic notation
     ///
     /// * Each piece is denoted by an uppercase letter, except for pawns
@@ -137,68 +272,20 @@ impl Board {
     ///     - R for rook
     ///
     /// * Returns a `Piece` and a `Coordinate` to move to
-    pub fn parse_move(&self, input: &str, white: bool) -> Result<(&Piece, Coordinate), Error> {
+    pub fn parse_move(
+        &self,
+        input: &str,
+        white: bool,
+    ) -> Result<(&Piece, Coordinate, Option<char>), Error> {
         // TODO: google en passant
         // TODO: castling
         // TODO: promotion
 
-        if input.len() < 2 {
-            return Err(Error::InvalidArgument);
-        }
+        let input = Self::sanitise_input(input)?;
+        let (id, position, promotion) = Self::process_input(&input, white)?;
+        let (x, y) = Self::disambiguate(&input, &id)?;
 
-        // remove letter x because it doesn't really matter
-        let mut input = input.replace("x", "");
-
-        // last 2 chars of move refers to the destination
-        let position = Coordinate::from_alphanumeric(&input[(input.len() - 2)..])?;
-
-        // default to pawn since it has no associated letter
-        let mut id = Id::Pawn;
-
-        // only uppercase letters for pieces
-        // lowercase b could be confused for uppercase B
-        // e.g. bxc5 vs Bxc5
-        let mut piece_letter = 'P';
-        for letter in ['B', 'N', 'K', 'Q', 'R'] {
-            if input.starts_with(letter) {
-                piece_letter = letter;
-                id = Id::from_char(letter)?;
-                break;
-            }
-        }
-
-        // check for additional identifiers for disambiguation
-        let ambiguous = 10;
-        let mut x = ambiguous;
-        let mut y = ambiguous;
-
-        // pawn taking move
-        // max length of any pawn move with the x removed is 3
-        if input.len() == 3 && piece_letter == 'P' {
-            // first letter identifies the column
-            x = input.chars().nth(0).unwrap() as usize - 97;
-        }
-
-        // all other disambiguations
-        if input.len() > 3 {
-            // remove piece char and last 2 chars to get the identifiers
-            input = input.replace(piece_letter, "");
-            let coordinates: Vec<char> = input[..(input.len() - 2)].chars().collect();
-
-            if coordinates.len() == 1 {
-                // decide whether its the column or row identifier
-                if coordinates[0].is_alphabetic() && coordinates[0].is_lowercase() {
-                    x = coordinates[0] as usize - 97;
-                } else {
-                    y = coordinates[0] as usize - 49;
-                }
-            } else {
-                x = coordinates[0] as usize - 97;
-                y = coordinates[1] as usize - 49;
-            }
-        }
-
-        // check if there is any ambiguity
+        // check if there is any remaining ambiguity
         let mut possible_move: Option<(&Piece, Coordinate)> = None;
 
         // searching every square in an 8 x 8 grid isn't the most efficient way,
@@ -214,8 +301,8 @@ impl Board {
                             && checker.can_move(&self, piece, &position)
                         {
                             // check for ambiguity
-                            if (x != ambiguous && piece.position.x != x)
-                                || (y != ambiguous && piece.position.y != y)
+                            if (x != AMBIGUOUS && piece.position.x != x)
+                                || (y != AMBIGUOUS && piece.position.y != y)
                             {
                                 continue;
                             }
@@ -223,7 +310,11 @@ impl Board {
                             // if a move has already been found,
                             // then there shouldn't be another possibility
                             match possible_move {
-                                Some(_) => return Err(Error::InvalidArgument),
+                                Some(_) => {
+                                    return Err(Error::InvalidMove {
+                                        message: String::from("is ambiguous"),
+                                    })
+                                }
                                 None => possible_move = Some((piece, position)),
                             }
                         }
@@ -235,7 +326,7 @@ impl Board {
 
         // check if a move has been found
         match possible_move {
-            Some((piece, position)) => return Ok((piece, position)),
+            Some((piece, position)) => return Ok((piece, position, promotion)),
             None => return Err(Error::InvalidArgument),
         }
     }
@@ -244,29 +335,39 @@ impl Board {
     /// * Returns `true` if the move is valid, `false` if not
     pub fn make_move(&mut self, input: &str, white: bool) -> bool {
         self.message.clear();
-        let (original, position) = match self.parse_move(input, white) {
-            Ok((piece, position)) => (piece, position),
-            Err(_) => {
-                self.message = format!("{}{} is not a valid move", WARNING_COLOUR, input);
+        let (original, position, promotion) = match self.parse_move(input, white) {
+            Ok((piece, position, promotion)) => (piece, position, promotion),
+            Err(error) => {
+                let error_message = match error {
+                    Error::InvalidMove { message } => message,
+                    _ => String::from("is not a valid move"),
+                };
+                self.message = format!("{}{} {}", WARNING_COLOUR, input, error_message);
                 return false;
             }
         };
 
+        // properties of moved piece
+        let x = position.x;
+        let y = position.y;
+        let icon = match promotion {
+            Some(icon) => icon,
+            None => original.icon,
+        };
+        let white = original.white;
+
         // check if the move will put the king in check with a test board
         let mut board = self.clone();
         board.grid[original.position.y][original.position.x] = None;
-        board.place_piece(position.x, position.y, original.icon, original.white);
+        board.place_piece(x, y, icon, white);
         if MoveChecker::in_check(&board, white) {
             self.message = format!("{}King would be in check", WARNING_COLOUR);
             return false;
         }
 
         // move piece
-        let mut piece = original.clone();
-        piece.position.x = position.x;
-        piece.position.y = position.y;
         self.grid[original.position.y][original.position.x] = None;
-        self.grid[position.y][position.x] = Some(piece);
+        self.place_piece(x, y, icon, white);
         return true;
     }
 }

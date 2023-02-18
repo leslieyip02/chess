@@ -1,6 +1,7 @@
 pub enum Error {
     InvalidArgument,
     IndexOutOfRange,
+    InvalidMove { message: String }
 }
 
 pub mod board;
