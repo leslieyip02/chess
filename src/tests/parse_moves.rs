@@ -24,14 +24,21 @@ fn test_input(board: &Board, input: &str, white: bool, expected: Option<(&Piece,
 
 #[test]
 fn bishop() {
-    let board = Board::from_vec(&vec![(3, 3, "♗", true)]);
+    let board = Board::from_vec(&vec![(3, 3, '♗', true)]);
     let piece = board.grid[3][3].as_ref().unwrap();
     test_input(&board, "Bg7", true, Some((piece, 6, 6)));
 }
 
 #[test]
+fn king() {
+    let board = Board::from_vec(&vec![(3, 3, '♔', true)]);
+    let piece = board.grid[3][3].as_ref().unwrap();
+    test_input(&board, "Ke4", true, Some((piece, 4, 3)));
+}
+
+#[test]
 fn knight() {
-    let board = Board::from_vec(&vec![(3, 3, "♘", true)]);
+    let board = Board::from_vec(&vec![(3, 3, '♘', true)]);
     let piece = board.grid[3][3].as_ref().unwrap();
     test_input(&board, "Nf3", true, Some((piece, 5, 2)));
 }
@@ -45,7 +52,7 @@ fn pawn() {
 
 #[test]
 fn queen() {
-    let board = Board::from_vec(&vec![(3, 3, "♕", true)]);
+    let board = Board::from_vec(&vec![(3, 3, '♕', true)]);
     let piece = board.grid[3][3].as_ref().unwrap();
     test_input(&board, "Qa4", true, Some((piece, 0, 3)));
     test_input(&board, "Qg7", true, Some((piece, 6, 6)));
@@ -53,7 +60,7 @@ fn queen() {
 
 #[test]
 fn rook() {
-    let board = Board::from_vec(&vec![(3, 3, "♖", true)]);
+    let board = Board::from_vec(&vec![(3, 3, '♖', true)]);
     let piece = board.grid[3][3].as_ref().unwrap();
     test_input(&board, "Ra4", true, Some((piece, 0, 3)));
 }
@@ -65,11 +72,20 @@ fn invalid() {
 }
 
 #[test]
+fn in_check() {
+    let mut board = Board::from_vec(&vec![(3, 3, '♔', true), (4, 4, '♕', false)]);
+    let piece = board.grid[3][3].as_ref().unwrap();
+    test_input(&board, "Kd3", true, Some((piece, 3, 2)));
+    assert_eq!(board.make_move("Kc3", true), false);
+    assert_eq!(board.message, "\u{001b}[31mKing would be in check");
+}
+
+#[test]
 fn ambiguous() {
     let bishop_board = Board::from_vec(&vec![
-        (3, 3, "♗", true),
-        (3, 5, "♗", true),
-        (5, 3, "♗", true),
+        (3, 3, '♗', true),
+        (3, 5, '♗', true),
+        (5, 3, '♗', true),
     ]);
     let bishop_1 = bishop_board.grid[3][3].as_ref().unwrap();
     let bishop_2 = bishop_board.grid[5][3].as_ref().unwrap();
@@ -84,9 +100,18 @@ fn ambiguous() {
     test_input(&bishop_board, "B6c5", true, Some((bishop_2, 2, 4)));
 
     let mut pawn_board = Board::new();
-    pawn_board.place_piece(4, 2, "♙", false);
+    pawn_board.place_piece(4, 2, '♙', false);
     let pawn_1 = pawn_board.grid[1][3].as_ref().unwrap();
     let pawn_2 = pawn_board.grid[1][5].as_ref().unwrap();
     test_input(&pawn_board, "dxe3", true, Some((pawn_1, 4, 2)));
     test_input(&pawn_board, "fxe3", true, Some((pawn_2, 4, 2)));
+}
+
+#[test]
+fn bad_input() {
+    let board = Board::new();
+    test_input(&board, "NC3", true, None);
+    test_input(&board, "asufuihjdlakbhf", true, None);
+    test_input(&board, "!@#$%^&*()", true, None);
+    test_input(&board, "", true, None);
 }
