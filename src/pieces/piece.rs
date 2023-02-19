@@ -23,6 +23,17 @@ impl Id {
             _ => Err(Error::InvalidArgument),
         }
     }
+
+    pub fn to_char(&self) -> Option<char> {
+        match self {
+            Self::Bishop => Some('B'),
+            Self::King => Some('K'),
+            Self::Knight => Some('N'),
+            Self::Pawn => None,
+            Self::Queen => Some('Q'),
+            Self::Rook => Some('R'),
+        }
+    }
 }
 
 /// Basic properties for each piece

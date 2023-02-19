@@ -137,3 +137,13 @@ fn castle_960() {
         None => assert!(false),
     };
 }
+
+#[test]
+fn checkmate() {
+    let mut board = Board::new();
+    board.make_move("f3", true);
+    board.make_move("e6", false);
+    board.make_move("g4", true);
+    board.make_move("Qh4", false);
+    assert!(MoveChecker::checkmate(&board, true));
+}

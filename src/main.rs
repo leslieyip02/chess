@@ -39,6 +39,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 thread::sleep(INTERVAL);
             }
 
+            if board.game_over(white) {
+                break;
+            }
+
             // only change to the other player after a valid move is made
             white = !white;
         }

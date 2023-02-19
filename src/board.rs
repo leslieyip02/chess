@@ -300,11 +300,12 @@ impl Board {
         let (id, target, promotion) = Self::process_normal_input(&input, white)?;
         let (x, y) = Self::disambiguate(&input, &id)?;
 
-        if x != AMBIGUOUS && id == Id::Pawn {
-            match MoveChecker::en_passant(&self, x, &target, white) {
-                Some(rank) => {
-                    let from = Coordinate::new(x, rank)?;
-                    let capture = Coordinate::new(target.x, rank)?;
+        if id == Id::Pawn {
+            let from = if x != AMBIGUOUS { Some(x) } else { None };
+            match MoveChecker::en_passant(&self, from, &target, white) {
+                Some((x, y)) => {
+                    let from = Coordinate::new(x, y)?;
+                    let capture = Coordinate::new(target.x, y)?;
 
                     // check if the move will put the king in check with a test board
                     let mut test_board = self.clone();
@@ -366,13 +367,13 @@ impl Board {
         }
 
         // check if a move has been found
-        match possible_move {
+        return match possible_move {
             Some((piece, target)) => {
                 // check if the move will put the king in check with a test board
                 let mut test_board = self.clone();
                 test_board.grid[piece.position.y][piece.position.x] = None;
                 test_board.place_piece(target.x, target.y, piece.icon, white, piece.moves);
-                return match MoveChecker::in_check(&test_board, white) {
+                match MoveChecker::in_check(&test_board, white) {
                     true => Err(Error::InvalidMove {
                         message: String::from("puts the king in check"),
                     }),
@@ -381,10 +382,10 @@ impl Board {
                         target,
                         promotion,
                     }),
-                };
+                }
             }
-            None => return Err(Error::InvalidArgument),
-        }
+            None => Err(Error::InvalidArgument),
+        };
     }
 
     /// Moves a piece to the target position
@@ -474,5 +475,18 @@ impl Board {
                 return false;
             }
         };
+    }
+
+    pub fn game_over(&mut self, white: bool) -> bool {
+        if MoveChecker::checkmate(self, !white) {
+            self.message = format!(
+                "\u{001b}[5m{} has won!\u{001b}[0m",
+                if white { "White" } else { "Black" }
+            );
+
+            return true;
+        }
+
+        return false;
     }
 }

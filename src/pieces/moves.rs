@@ -2,6 +2,7 @@ use crate::board::*;
 use crate::coordinate::Coordinate;
 use crate::pieces::{Id, Piece};
 
+/// Contains the data needed to make a type of move
 pub enum MoveType {
     Normal {
         piece: Piece,
@@ -223,6 +224,44 @@ impl MoveChecker {
         return false;
     }
 
+    /// Checks if there are any moves that can be made
+    pub fn checkmate(board: &Board, white: bool) -> bool {
+        if !Self::in_check(board, white) {
+            return false;
+        }
+
+        // check if any moves are available
+        // cannot castle while in check
+        for row in &board.grid {
+            for piece in row {
+                match piece {
+                    Some(piece) => {
+                        if piece.white == white {
+                            let letter = piece.id.to_char();
+                            for y in 0..NUM_ROWS {
+                                for x in 0..NUM_COLS {
+                                    let target = format!("{}{}", (x as u8) as char, y.to_string());
+                                    let input = match letter {
+                                        Some(letter) => format!("{}{}", letter, target),
+                                        None => target,
+                                    };
+
+                                    match board.parse_move(&input, white) {
+                                        Ok(_) => return false,
+                                        Err(_) => continue,
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    None => continue,
+                }
+            }
+        }
+
+        return true;
+    }
+
     /// Checks if castling is possible
     /// * returns the file that the king and rook are in
     /// * supports chess960 castling
@@ -322,10 +361,10 @@ impl MoveChecker {
     /// * returns the rank of the capturing and captured pawn
     pub fn en_passant(
         board: &Board,
-        from: usize,
+        from: Option<usize>,
         target: &Coordinate,
         white: bool,
-    ) -> Option<usize> {
+    ) -> Option<(usize, usize)> {
         if !Self::in_bounds(target) {
             return None;
         }
@@ -336,17 +375,11 @@ impl MoveChecker {
             None => (),
         }
 
-        // en passant can only occur when the pawn moves 2 squares
+        // en passant can only occur when the pawn moves 2 squares,
         let rank = match white {
             true => EN_PASSANT[0],
             false => EN_PASSANT[1],
         };
-
-        // check if there is a pawn to do the en passant
-        match &board.grid[rank][from] {
-            Some(_) => (),
-            None => return None,
-        }
 
         let square = Coordinate {
             x: target.x,
@@ -373,8 +406,39 @@ impl MoveChecker {
 
         match &board.grid[square.y][square.x] {
             Some(piece) => {
+                // check the piece to capture is a pawn
                 if piece.id == Id::Pawn && piece.moves == 1 {
-                    return Some(rank);
+                    // check if there is a pawn to do the en passant
+                    match from {
+                        Some(x) => match &board.grid[rank][x] {
+                            Some(piece) => return Some((piece.position.x, piece.position.y)),
+                            None => return None,
+                        },
+                        // if no file specified, check if any are valid
+                        None => {
+                            if square.x > 0 {
+                                let left = square.x - 1;
+                                match &board.grid[rank][left] {
+                                    Some(piece) => {
+                                        return Some((piece.position.x, piece.position.y))
+                                    }
+                                    None => (),
+                                }
+                            }
+
+                            if square.x < NUM_COLS - 1 {
+                                let right = square.x + 1;
+                                match &board.grid[rank][right] {
+                                    Some(piece) => {
+                                        return Some((piece.position.x, piece.position.y))
+                                    }
+                                    None => (),
+                                }
+                            }
+
+                            return None;
+                        }
+                    };
                 }
             }
             None => (),
