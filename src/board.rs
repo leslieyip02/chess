@@ -2,6 +2,7 @@ use crate::coordinate::Coordinate;
 use crate::pieces::moves::MoveType;
 use crate::pieces::{Id, MoveChecker, Piece};
 use crate::Error;
+use rand::Rng;
 use std::{thread, time};
 
 pub const NUM_COLS: usize = 8;
@@ -49,20 +50,74 @@ impl Board {
 
         // both black and white pieces use the unicode white pieces
         // because the unicode black pawn is coloured by default in command prompt
+        let pieces = ['♖', '♘', '♗', '♕', '♔', '♗', '♘', '♖'];
+        let pawns = ['♙'; NUM_COLS];
 
-        // white pieces
-        let rank_1 = ['♖', '♘', '♗', '♕', '♔', '♗', '♘', '♖'];
-        let rank_2 = ['♙'; NUM_COLS];
+        for y in [0, NUM_ROWS - 1] {
+            for x in 0..NUM_COLS.min(pieces.len()) {
+                board.place_piece(x, y, pieces[x], y == 0, 0);
+            }
+        }
 
-        // black pieces
-        let rank_7 = ['♙'; NUM_COLS];
-        let rank_8 = ['♖', '♘', '♗', '♕', '♔', '♗', '♘', '♖'];
+        for y in [1, NUM_ROWS - 2] {
+            for x in 0..NUM_COLS.min(pawns.len()) {
+                board.place_piece(x, y, pawns[x], y == 1, 0);
+            }
+        }
 
-        for x in 0..NUM_COLS.min(rank_1.len()) {
-            board.place_piece(x, 0, rank_1[x], true, 0);
-            board.place_piece(x, 1, rank_2[x], true, 0);
-            board.place_piece(x, 6, rank_7[x], false, 0);
-            board.place_piece(x, 7, rank_8[x], false, 0);
+        return board;
+    }
+
+    /// Creates a random chess960 board
+    pub fn new_random() -> Board {
+        let mut board = Self::empty();
+
+        // king must be between the rooks
+        let king = rand::thread_rng().gen_range(1..(NUM_COLS - 1));
+        let rook_1 = rand::thread_rng().gen_range(0..king);
+        let rook_2 = rand::thread_rng().gen_range((king + 1)..NUM_COLS);
+
+        // bishops must be on opposite colours
+        let mut light: Vec<usize> = Vec::new();
+        let mut dark: Vec<usize> = Vec::new();
+        for i in 0..NUM_COLS {
+            if i == king || i == rook_1 || i == rook_2 {
+                continue;
+            }
+
+            match i % 2 == 0 {
+                true => light.push(i),
+                false => dark.push(i),
+            }
+        }
+
+        let bishop_1 = light.remove(rand::thread_rng().gen_range(0..light.len()));
+        let bishop_2 = dark.remove(rand::thread_rng().gen_range(0..dark.len()));
+
+        // randomly assign the remaining
+        let mut remaining = light;
+        remaining.extend(dark);
+        let queen = remaining.remove(rand::thread_rng().gen_range(0..remaining.len()));
+        let knight_1 = remaining.remove(rand::thread_rng().gen_range(0..remaining.len()));
+        let knight_2 = remaining.remove(rand::thread_rng().gen_range(0..remaining.len()));
+
+        for y in [0, NUM_ROWS - 1] {
+            board.place_piece(bishop_1, y, '♗', y == 0, 0);
+            board.place_piece(bishop_2, y, '♗', y == 0, 0);
+            board.place_piece(king, y, '♔', y == 0, 0);
+            board.place_piece(knight_1, y, '♘', y == 0, 0);
+            board.place_piece(knight_2, y, '♘', y == 0, 0);
+            board.place_piece(queen, y, '♕', y == 0, 0);
+            board.place_piece(rook_1, y, '♖', y == 0, 0);
+            board.place_piece(rook_2, y, '♖', y == 0, 0);
+        }
+
+        // pawns remain the same
+        let pawns = ['♙'; NUM_COLS];
+        for y in [1, NUM_ROWS - 2] {
+            for x in 0..NUM_COLS.min(pawns.len()) {
+                board.place_piece(x, y, pawns[x], y == 1, 0);
+            }
         }
 
         return board;
@@ -139,7 +194,7 @@ impl Board {
         // reset colours
         println!("\u{001b}[0m");
     }
-    
+
     /// Simple loading bar to be shown between turns
     pub fn show_loading_bar(&self) {
         println!();
@@ -490,6 +545,7 @@ impl Board {
         };
     }
 
+    /// Displays the winner once one player reaches checkmate
     pub fn game_over(&mut self, white: bool) -> bool {
         if MoveChecker::checkmate(self, !white) {
             self.message = format!(

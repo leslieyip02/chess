@@ -6,9 +6,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     let stdin = io::stdin();
     let mut line = String::new();
 
+    // select game type
+    println!("\u{001b}[5mGame Select: \u{001b}[0m");
+    println!("1. Chess");
+    println!("2. Chess960");
+    stdin.read_line(&mut line)?;
+    let choice = line.trim();
+    let mut board = match choice {
+        "quit" => return Ok(()),
+        "2" => Board::new_random(),
+        _ => Board::new(),
+    };
+    line.clear();
+
     // keep track of turns
     let mut white = true;
-    let mut board = Board::new();
 
     loop {
         // display board
@@ -20,13 +32,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             if white { "white" } else { "black" }
         );
         stdin.read_line(&mut line)?;
-        let action = line.trim();
+        let input = line.trim();
 
-        if action == "quit" {
+        if input == "quit" {
             break;
         }
 
-        if board.make_move(action, white) {
+        if board.make_move(input, white) {
             board.show(white);
             board.show_loading_bar();
 
