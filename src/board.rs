@@ -497,6 +497,7 @@ impl Board {
                 if white { "White" } else { "Black" }
             );
 
+            self.show(white);
             return true;
         }
 
