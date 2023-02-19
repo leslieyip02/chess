@@ -52,13 +52,13 @@ impl Board {
 
         // white pieces
         let rank_1 = ['♖', '♘', '♗', '♕', '♔', '♗', '♘', '♖'];
-        let rank_2 = ['♙'; 8];
+        let rank_2 = ['♙'; NUM_COLS];
 
         // black pieces
-        let rank_7 = ['♙'; 8];
+        let rank_7 = ['♙'; NUM_COLS];
         let rank_8 = ['♖', '♘', '♗', '♕', '♔', '♗', '♘', '♖'];
 
-        for x in 0..NUM_COLS {
+        for x in 0..NUM_COLS.min(rank_1.len()) {
             board.place_piece(x, 0, rank_1[x], true, 0);
             board.place_piece(x, 1, rank_2[x], true, 0);
             board.place_piece(x, 6, rank_7[x], false, 0);
@@ -115,7 +115,7 @@ impl Board {
             let y = if white { NUM_ROWS - i - 1 } else { i };
 
             // print row numbers
-            print!("{} ", y + 1);
+            print!("{:<2}", y + 1);
             for j in 0..NUM_COLS {
                 let x = if white { j } else { NUM_COLS - j - 1 };
                 self.show_tile(x, y);
