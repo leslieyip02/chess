@@ -1,9 +1,6 @@
 use chess::board::*;
 use std::error::Error;
-use std::{io, thread, time};
-
-const LOADING_ICON: &str = "* ";
-const INTERVAL: time::Duration = time::Duration::from_millis(500);
+use std::io;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let stdin = io::stdin();
@@ -31,13 +28,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         if board.make_move(action, white) {
             board.show(white);
-
-            // simple loading bar
-            println!();
-            for i in 1..=3 {
-                println!("\u{001b}[F{}", LOADING_ICON.repeat(i));
-                thread::sleep(INTERVAL);
-            }
+            board.show_loading_bar();
 
             if board.game_over(white) {
                 break;

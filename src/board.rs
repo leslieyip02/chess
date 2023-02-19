@@ -2,6 +2,7 @@ use crate::coordinate::Coordinate;
 use crate::pieces::moves::MoveType;
 use crate::pieces::{Id, MoveChecker, Piece};
 use crate::Error;
+use std::{thread, time};
 
 pub const NUM_COLS: usize = 8;
 pub const NUM_ROWS: usize = 8;
@@ -15,6 +16,9 @@ const TILE_COLOURS: [&str; 2] = ["\u{001b}[48;5;250m", "\u{001b}[48;5;240m"];
 const WHITE_COLOUR: &str = "\u{001b}[38;5;255m";
 const BLACK_COLOUR: &str = "\u{001b}[38;5;232m";
 const WARNING_COLOUR: &str = "\u{001b}[31m";
+
+const LOADING_ICON: &str = "* ";
+const INTERVAL: time::Duration = time::Duration::from_millis(500);
 
 // inaccessible coordinate used to test for ambiguity
 const AMBIGUOUS: usize = NUM_COLS + 10;
@@ -134,6 +138,15 @@ impl Board {
 
         // reset colours
         println!("\u{001b}[0m");
+    }
+    
+    /// Simple loading bar to be shown between turns
+    pub fn show_loading_bar(&self) {
+        println!();
+        for i in 1..=3 {
+            println!("\u{001b}[F{}", LOADING_ICON.repeat(i));
+            thread::sleep(INTERVAL);
+        }
     }
 
     /// Standardises the input string
