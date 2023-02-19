@@ -52,21 +52,35 @@ fn in_check() {
 
 #[test]
 fn castle() {
-    let board = Board::from_vec(&vec![
+    let mut board = Board::from_vec(&vec![
         (4, 0, '♔', true),
         (0, 0, '♖', true),
         (7, 0, '♖', true),
     ]);
-    let king = board.grid[0][4].as_ref().unwrap();
-    let rook_k = board.grid[0][7].as_ref().unwrap();
-    let rook_q = board.grid[0][0].as_ref().unwrap();
-    assert!(MoveChecker::can_castle(&board, &king, rook_k, false, true));
-    assert!(MoveChecker::can_castle(&board, &king, rook_q, true, true));
+    match MoveChecker::castle(&board, false, true) {
+        Some((king_x, rook_x)) => {
+            assert_eq!(king_x, 4);
+            assert_eq!(rook_x, 0)
+        }
+        None => assert!(false),
+    };
+    match MoveChecker::castle(&board, true, true) {
+        Some((king_x, rook_x)) => {
+            assert_eq!(king_x, 4);
+            assert_eq!(rook_x, 7)
+        }
+        None => assert!(false),
+    };
 
-    let mut king = king.clone();
-    king.moves += 1;
-    assert!(!MoveChecker::can_castle(&board, &king, rook_k, true, true),);
-    assert!(!MoveChecker::can_castle(&board, &king, rook_q, false, true),);
+    board.grid[0][4].as_mut().unwrap().moves += 1;
+    match MoveChecker::castle(&board, false, true) {
+        Some(_) => assert!(false),
+        None => assert!(true),
+    };
+    match MoveChecker::castle(&board, true, true) {
+        Some(_) => assert!(false),
+        None => assert!(true),
+    };
 }
 
 #[test]
@@ -76,9 +90,10 @@ fn castle_in_check() {
         (0, 0, '♖', true),
         (3, 7, '♖', false),
     ]);
-    let king = board.grid[0][4].as_ref().unwrap();
-    let rook = board.grid[0][0].as_ref().unwrap();
-    assert!(!MoveChecker::can_castle(&board, &king, rook, false, true));
+    match MoveChecker::castle(&board, false, true) {
+        Some(_) => assert!(false),
+        None => assert!(true),
+    };
 }
 
 #[test]
@@ -90,11 +105,14 @@ fn castle_while_blocked() {
         (3, 0, '♕', true),
         (6, 0, '♖', false),
     ]);
-    let king = board.grid[0][4].as_ref().unwrap();
-    let rook_k = board.grid[0][7].as_ref().unwrap();
-    let rook_q = board.grid[0][0].as_ref().unwrap();
-    assert!(!MoveChecker::can_castle(&board, &king, rook_k, false, true));
-    assert!(!MoveChecker::can_castle(&board, &king, rook_q, true, true));
+    match MoveChecker::castle(&board, false, true) {
+        Some(_) => assert!(false),
+        None => assert!(true),
+    };
+    match MoveChecker::castle(&board, true, true) {
+        Some(_) => assert!(false),
+        None => assert!(true),
+    };
 }
 
 #[test]
@@ -104,9 +122,18 @@ fn castle_960() {
         (0, 0, '♖', true),
         (4, 0, '♖', true),
     ]);
-    let king = board.grid[0][1].as_ref().unwrap();
-    let rook_k = board.grid[0][4].as_ref().unwrap();
-    let rook_q = board.grid[0][0].as_ref().unwrap();
-    assert!(MoveChecker::can_castle(&board, &king, rook_k, true, true));
-    assert!(MoveChecker::can_castle(&board, &king, rook_q, false, true));
+    match MoveChecker::castle(&board, false, true) {
+        Some((king_x, rook_x)) => {
+            assert_eq!(king_x, 1);
+            assert_eq!(rook_x, 0)
+        }
+        None => assert!(false),
+    };
+    match MoveChecker::castle(&board, true, true) {
+        Some((king_x, rook_x)) => {
+            assert_eq!(king_x, 1);
+            assert_eq!(rook_x, 4)
+        }
+        None => assert!(false),
+    };
 }

@@ -1,4 +1,5 @@
 use crate::coordinate::Coordinate;
+use crate::pieces::moves::MoveType;
 use crate::pieces::{Id, MoveChecker, Piece};
 use crate::Error;
 
@@ -6,6 +7,7 @@ pub const NUM_COLS: usize = 8;
 pub const NUM_ROWS: usize = 8;
 pub const KINGSIDE_CASTLE: [usize; 2] = [6, 5];
 pub const QUEENSIDE_CASTLE: [usize; 2] = [2, 3];
+pub const EN_PASSANT: [usize; 2] = [4, 3];
 
 // \u{001b}[38;5;<n>m -> foreground colour for some n
 // \u{001b}[48;5;<n>m -> background colour for some value of n
@@ -24,6 +26,7 @@ const AMBIGUOUS: usize = NUM_COLS + 10;
 pub struct Board {
     pub grid: [[Option<Piece>; NUM_COLS]; NUM_ROWS],
     pub message: String,
+    pub history: Vec<String>,
 }
 
 impl Board {
@@ -32,6 +35,7 @@ impl Board {
         Board {
             grid: Default::default(),
             message: String::new(),
+            history: Vec::new(),
         }
     }
 
@@ -193,7 +197,10 @@ impl Board {
     }
 
     // Returns the piece to move, the position to move to, and if the move is a promotion
-    fn process_input(input: &str, white: bool) -> Result<(Id, Coordinate, Option<char>), Error> {
+    fn process_normal_input(
+        input: &str,
+        white: bool,
+    ) -> Result<(Id, Coordinate, Option<char>), Error> {
         let promotion = Self::promote_to(&input);
         let id = Self::piece_id(&input)?;
 
@@ -203,24 +210,24 @@ impl Board {
         if promotion.is_some() {
             end_index -= 1;
         }
-        let position = Self::target_position(&input[..end_index])?;
+        let target = Self::target_position(&input[..end_index])?;
 
         // only allow promotion if its a pawn move to the correct rank
         let promotion_rank = if white { 7 } else { 0 };
-        if promotion.is_some() && (id != Id::Pawn || position.y != promotion_rank) {
+        if promotion.is_some() && (id != Id::Pawn || target.y != promotion_rank) {
             return Err(Error::InvalidMove {
                 message: String::from("is not a valid promotion"),
             });
         }
 
         // must promote when on promotion rank
-        if promotion.is_none() && id == Id::Pawn && position.y == promotion_rank {
+        if promotion.is_none() && id == Id::Pawn && target.y == promotion_rank {
             return Err(Error::InvalidMove {
                 message: String::from("is not valid because promotion is forced"),
             });
         }
 
-        Ok((id, position, promotion))
+        Ok((id, target, promotion))
     }
 
     /// Checks for additional positional identifiers for disambiguation
@@ -269,19 +276,55 @@ impl Board {
     ///     - R for rook
     ///
     /// * Returns a `Piece` and a `Coordinate` to move to
-    pub fn parse_move(
-        &self,
-        input: &str,
-        white: bool,
-    ) -> Result<(&Piece, Coordinate, Option<char>), Error> {
-        // TODO: google en passant
-        // TODO: castling
+    pub fn parse_move(&self, input: &str, white: bool) -> Result<MoveType, Error> {
         if input.len() < 2 {
             return Err(Error::InvalidArgument);
         }
+        let input = Self::sanitise_input(input);
 
-        let (id, position, promotion) = Self::process_input(&input, white)?;
+        // handle castling separtely
+        if input == "O-O" || input == "O-O-O" {
+            let kingside = input == "O-O";
+            return match MoveChecker::castle(&self, kingside, white) {
+                Some((king_x, rook_x)) => Ok(MoveType::Castle {
+                    king_x,
+                    rook_x,
+                    kingside,
+                }),
+                None => Err(Error::InvalidMove {
+                    message: String::from("cannot castle"),
+                }),
+            };
+        }
+
+        let (id, target, promotion) = Self::process_normal_input(&input, white)?;
         let (x, y) = Self::disambiguate(&input, &id)?;
+
+        if x != AMBIGUOUS && id == Id::Pawn {
+            match MoveChecker::en_passant(&self, x, &target, white) {
+                Some(rank) => {
+                    let from = Coordinate::new(x, rank)?;
+                    let capture = Coordinate::new(target.x, rank)?;
+
+                    // check if the move will put the king in check with a test board
+                    let mut test_board = self.clone();
+                    test_board.grid[from.y][from.x] = None;
+                    test_board.place_piece(target.x, target.y, '♙', white, 0);
+                    test_board.grid[capture.y][capture.x] = None;
+                    return match MoveChecker::in_check(&test_board, white) {
+                        true => Err(Error::InvalidMove {
+                            message: String::from("puts the king in check"),
+                        }),
+                        false => Ok(MoveType::EnPassant {
+                            from,
+                            target,
+                            capture,
+                        }),
+                    };
+                }
+                None => (),
+            };
+        }
 
         // check if there is any remaining ambiguity
         let mut possible_move: Option<(&Piece, Coordinate)> = None;
@@ -296,7 +339,7 @@ impl Board {
                     Some(piece) => {
                         if piece.id == id
                             && piece.white == white
-                            && checker.can_move(&self, piece, &position)
+                            && checker.can_move(&self, piece, &target)
                         {
                             // check for ambiguity
                             if (x != AMBIGUOUS && piece.position.x != x)
@@ -313,7 +356,7 @@ impl Board {
                                         message: String::from("is ambiguous"),
                                     })
                                 }
-                                None => possible_move = Some((piece, position)),
+                                None => possible_move = Some((piece, target)),
                             }
                         }
                     }
@@ -324,105 +367,104 @@ impl Board {
 
         // check if a move has been found
         match possible_move {
-            Some((piece, position)) => return Ok((piece, position, promotion)),
+            Some((piece, target)) => {
+                // check if the move will put the king in check with a test board
+                let mut test_board = self.clone();
+                test_board.grid[piece.position.y][piece.position.x] = None;
+                test_board.place_piece(target.x, target.y, piece.icon, white, piece.moves);
+                return match MoveChecker::in_check(&test_board, white) {
+                    true => Err(Error::InvalidMove {
+                        message: String::from("puts the king in check"),
+                    }),
+                    false => Ok(MoveType::Normal {
+                        piece: piece.clone(),
+                        target,
+                        promotion,
+                    }),
+                };
+            }
             None => return Err(Error::InvalidArgument),
         }
     }
 
+    /// Moves a piece to the target position
+    /// * handles promotion if necessary
+    fn make_normal_move(&mut self, piece: Piece, target: Coordinate, promotion: Option<char>) {
+        // properties of moved piece
+        let x = target.x;
+        let y = target.y;
+        let icon = match promotion {
+            Some(icon) => icon,
+            None => piece.icon,
+        };
+        let white = piece.white;
+        let moves = piece.moves + 1;
+
+        // move piece
+        self.grid[piece.position.y][piece.position.x] = None;
+        self.place_piece(x, y, icon, white, moves);
+    }
+
     /// Castling is handled separately because it's the only move that moves 2 pieces at once
     /// * supports chess960 castling
-    pub fn castle(&mut self, input: &str, white: bool) -> bool {
-        let kingside = input == "O-O";
-
-        let rank = if white { 0 } else { 7 };
-        let mut king: Option<&Piece> = None;
-        for piece in &self.grid[rank] {
-            match piece {
-                Some(piece) => {
-                    // find the king
-                    if piece.id == Id::King && piece.white == white {
-                        king = Some(piece);
-                        break;
-                    }
-                }
-                None => continue,
-            }
-        }
-
-        if king.is_none() {
-            return false;
-        }
-
-        let king = king.unwrap();
-        let range = match kingside {
-            true => (king.position.x + 1)..NUM_COLS,
-            false => 0..king.position.x,
+    pub fn castle(&mut self, king_x: usize, rook_x: usize, kingside: bool, white: bool) {
+        let rank = if white { 0 } else { NUM_ROWS - 1 };
+        let files = match kingside {
+            true => &KINGSIDE_CASTLE,
+            false => &QUEENSIDE_CASTLE,
         };
+        let king_target = files[0];
+        let rook_target = files[1];
 
-        let mut rook: Option<&Piece> = None;
-        for i in range {
-            match &self.grid[rank][i] {
-                Some(piece) => {
-                    // find  the rook
-                    if piece.id == Id::Rook && piece.white == white {
-                        rook = Some(piece);
-                        break;
-                    }
-                }
-                None => continue,
-            }
-        }
+        // move pieces
+        self.grid[rank][king_x] = None;
+        self.place_piece(king_target, rank, '♔', white, 1);
+        self.grid[rank][rook_x] = None;
+        self.place_piece(rook_target, rank, '♖', white, 1);
+    }
 
-        if rook.is_none() {
-            return false;
-        }
-
-        let rook = rook.unwrap();
-        if MoveChecker::can_castle(&self, king, rook, kingside, white) {
-            let rank = if white { 0 } else { 7 };
-            let files = match kingside {
-                true => &KINGSIDE_CASTLE,
-                false => &QUEENSIDE_CASTLE,
-            };
-            let king_target = files[0];
-            let rook_target = files[1];
-            let king_x = king.position.x;
-            let rook_x = rook.position.y;
-
-            // move pieces
-            self.grid[rank][king_x] = None;
-            self.place_piece(king_target, rank, '♔', white, 1);
-            self.grid[rank][rook_x] = None;
-            self.place_piece(rook_target, rank, '♖', white, 1);
-
-            return true;
-        }
-
-        return false;
+    /// En passant is handled separately because the capture is not the same as the target square
+    pub fn en_passant(
+        &mut self,
+        from: Coordinate,
+        target: Coordinate,
+        capture: Coordinate,
+        white: bool,
+    ) {
+        self.grid[from.y][from.x] = None;
+        self.place_piece(target.x, target.y, '♙', white, 0);
+        self.grid[capture.y][capture.x] = None;
     }
 
     /// Moves a piece based on `input`
     /// * Returns `true` if the move is valid, `false` if not
     pub fn make_move(&mut self, input: &str, white: bool) -> bool {
         self.message.clear();
-        let sanitised_input = &Self::sanitise_input(input)[..];
-
-        // check if the move is castling
-        match sanitised_input {
-            "O-O" | "O-O-O" => {
-                if self.castle(sanitised_input, white) {
-                    return true;
-                } else {
-                    self.message = format!("{}Cannot castle {}", WARNING_COLOUR, input);
-                    return false;
-                }
-            }
-            _ => (),
-        }
 
         // check if move is valid first
-        let (original, position, promotion) = match self.parse_move(sanitised_input, white) {
-            Ok((piece, position, promotion)) => (piece, position, promotion),
+        match self.parse_move(input, white) {
+            Ok(move_type) => {
+                match move_type {
+                    MoveType::Normal {
+                        piece,
+                        target,
+                        promotion,
+                    } => self.make_normal_move(piece, target, promotion),
+                    MoveType::Castle {
+                        king_x,
+                        rook_x,
+                        kingside,
+                    } => self.castle(king_x, rook_x, kingside, white),
+                    MoveType::EnPassant {
+                        from,
+                        target,
+                        capture,
+                    } => self.en_passant(from, target, capture, white),
+                };
+
+                self.history.push(String::from(input));
+                return true;
+            }
             Err(error) => {
                 let error_message = match error {
                     Error::InvalidMove { message } => message,
@@ -432,29 +474,5 @@ impl Board {
                 return false;
             }
         };
-
-        // properties of moved piece
-        let x = position.x;
-        let y = position.y;
-        let icon = match promotion {
-            Some(icon) => icon,
-            None => original.icon,
-        };
-        let white = original.white;
-        let moves = original.moves + 1;
-
-        // check if the move will put the king in check with a test board
-        let mut test_board = self.clone();
-        test_board.grid[original.position.y][original.position.x] = None;
-        test_board.place_piece(x, y, icon, white, moves);
-        if MoveChecker::in_check(&test_board, white) {
-            self.message = format!("{}King would be in check", WARNING_COLOUR);
-            return false;
-        }
-
-        // move piece
-        self.grid[original.position.y][original.position.x] = None;
-        self.place_piece(x, y, icon, white, moves);
-        return true;
     }
 }

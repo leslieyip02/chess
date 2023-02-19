@@ -1,5 +1,5 @@
 use super::test_move;
-use crate::board::Board;
+use crate::{board::Board, coordinate::Coordinate, pieces::MoveChecker};
 
 #[test]
 fn single_forward() {
@@ -42,6 +42,26 @@ fn capture() {
     test_move(&board, 1, 1, 0, 2, true);
     test_move(&board, 1, 1, 2, 2, true);
     test_move(&board, 3, 3, 2, 2, false);
+}
+
+#[test]
+fn en_passant() {
+    let mut board = Board::from_vec(&vec![
+        (1, 4, '♙', true),
+        (0, 6, '♙', false),
+        (2, 6, '♙', false),
+    ]);
+    board.make_move("c6", false);
+    board.make_move("c5", false);
+    match MoveChecker::en_passant(&board, 1, &Coordinate { x: 2, y: 5 }, true) {
+        Some(_) => assert!(false),
+        None => assert!(true),
+    };
+    board.make_move("a5", false);
+    match MoveChecker::en_passant(&board, 1, &Coordinate { x: 0, y: 5 }, true) {
+        Some(rank) => assert_eq!(rank, 4),
+        None => assert!(false),
+    };
 }
 
 #[test]
