@@ -147,3 +147,15 @@ fn checkmate() {
     board.make_move("Qh4", false);
     assert!(MoveChecker::checkmate(&board, true));
 }
+
+#[test]
+fn smothered_mate() {
+    let board = Board::from_vec(&vec![
+        (0, 0, '♔', false),
+        (0, 1, '♙', false),
+        (1, 1, '♙', false),
+        (1, 0, '♖', false),
+        (2, 1, '♘', true),
+    ]);
+    assert!(MoveChecker::checkmate(&board, false));
+}
